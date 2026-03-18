@@ -153,7 +153,7 @@ const LoginPage = () => {
                   return;
                 }
 
-                navigate("/parent-dashboard");
+                navigate("/modulos");
               } finally {
                 setIsSubmitting(false);
               }

@@ -11,6 +11,10 @@ import ReferralsPage from "./pages/ReferralsPage";
 import LoginPage from "./pages/LoginPage";
 import PricingPage from "./pages/PricingPage";
 import EcaLgpdPage from "./pages/EcaLgpdPage";
+import ModuleSelectPage from "./pages/ModuleSelectPage";
+import ChildDashboard from "./pages/ChildDashboard";
+import TeenDashboard from "./pages/TeenDashboard";
+import AdultDashboard from "./pages/AdultDashboard";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +28,10 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/lesson" element={<LessonPage />} />
           <Route path="/parent-dashboard" element={<ParentDashboard />} />
+          <Route path="/modulos" element={<ModuleSelectPage />} />
+          <Route path="/dashboard/crianca" element={<ChildDashboard />} />
+          <Route path="/dashboard/adolescente" element={<TeenDashboard />} />
+          <Route path="/dashboard/adulto" element={<AdultDashboard />} />
           <Route path="/referrals" element={<ReferralsPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
