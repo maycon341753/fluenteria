@@ -10,6 +10,7 @@ import ParentDashboard from "./pages/ParentDashboard";
 import ReferralsPage from "./pages/ReferralsPage";
 import LoginPage from "./pages/LoginPage";
 import PricingPage from "./pages/PricingPage";
+import EcaLgpdPage from "./pages/EcaLgpdPage";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/referrals" element={<ReferralsPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/eca-lgpd" element={<EcaLgpdPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

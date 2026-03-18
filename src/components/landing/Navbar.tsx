@@ -29,6 +29,9 @@ const Navbar = () => {
           <button onClick={() => navigate("/referrals")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
             Indicar
           </button>
+          <button onClick={() => navigate("/eca-lgpd")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+            ECA e LGPD
+          </button>
           <Button variant="default" size="sm" onClick={() => navigate("/login")}>
             Entrar
           </Button>
@@ -48,6 +51,7 @@ const Navbar = () => {
             <button onClick={() => { navigate("/lesson"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Aprender</button>
             <button onClick={() => { navigate("/parent-dashboard"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Pais</button>
             <button onClick={() => { navigate("/referrals"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Indicar</button>
+            <button onClick={() => { navigate("/eca-lgpd"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">ECA e LGPD</button>
             <Button variant="default" onClick={() => { navigate("/login"); setMenuOpen(false); }}>Entrar</Button>
           </div>
         </div>

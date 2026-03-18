@@ -26,12 +26,12 @@ const HeroSection = () => {
               🎮 Aprenda inglês brincando!
             </div>
             <h1 className="mb-4 font-display text-4xl font-bold leading-tight text-foreground md:text-5xl lg:text-6xl">
-              Inglês para crianças com{" "}
-              <span className="text-primary">super</span>{" "}
-              <span className="text-success">diversão</span>
+              Aprenda idiomas de forma simples,{" "}
+              <span className="text-primary">rápida</span> e{" "}
+              <span className="text-success">divertida</span>
             </h1>
             <p className="mb-8 max-w-lg font-body text-lg text-muted-foreground md:text-xl">
-              Seu filho aprende falando, repetindo e jogando. Acompanhe tudo em tempo real pelo celular! 🚀
+              Para todas as idades. E para crianças, os pais acompanham a evolução pelo WhatsApp🚀
             </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center md:justify-start">
               <Button variant="hero" size="xl" onClick={() => navigate("/lesson")}>
