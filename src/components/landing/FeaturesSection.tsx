@@ -1,4 +1,4 @@
-import { Mic, Headphones, Trophy, BarChart3, Smartphone, Users } from "lucide-react";
+import { Mic, Headphones, Trophy, BarChart3, Smartphone } from "lucide-react";
 
 const features = [
   {
@@ -30,12 +30,6 @@ const features = [
     title: "Notificações WhatsApp",
     description: "Receba atualizações do progresso direto no celular",
     color: "bg-success/10 text-success",
-  },
-  {
-    icon: Users,
-    title: "Indique e Ganhe",
-    description: "Ganhe 40% de comissão por cada indicação ativa",
-    color: "bg-referral/10 text-referral",
   },
 ];
 
