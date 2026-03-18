@@ -1,42 +1,11 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabaseClient";
-import { useEffect, useState } from "react";
+import LessonProgressPanel from "@/components/dashboard/LessonProgressPanel";
 import { useNavigate } from "react-router-dom";
 
 const AdultDashboard = () => {
   const navigate = useNavigate();
-  const [level, setLevel] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!supabase) {
-        if (!mounted) return;
-        setIsLoading(false);
-        return;
-      }
-
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (!data.session) {
-        navigate("/login");
-        return;
-      }
-
-      const { data: selectionData } = await supabase.from("user_learning_path").select("level").eq("module", "adulto").single();
-      if (!mounted) return;
-
-      setLevel(selectionData?.level ?? null);
-      setIsLoading(false);
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,16 +19,7 @@ const AdultDashboard = () => {
             </Button>
           </div>
 
-          <div className="rounded-3xl border-2 border-border bg-card p-6">
-            <p className="font-body text-muted-foreground">
-              {isLoading ? "Carregando..." : level ? `Nível selecionado: ${level}` : "Nenhum nível selecionado ainda."}
-            </p>
-            <div className="mt-4">
-              <Button variant="hero" size="lg" onClick={() => navigate("/lesson")}>
-                Começar lições
-              </Button>
-            </div>
-          </div>
+          <LessonProgressPanel module="adulto" />
         </div>
       </main>
       <Footer />
