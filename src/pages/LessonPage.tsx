@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Volume2, Mic, ArrowLeft, Star, Flame, Trophy } from "lucide-react";
@@ -6,14 +6,94 @@ import Navbar from "@/components/landing/Navbar";
 import { speak } from "@/lib/speak";
 import { toast } from "@/hooks/use-toast";
 import { recognizeSpeech } from "@/lib/recognizeSpeech";
+import { supabase } from "@/lib/supabaseClient";
 
-const phrases = [
-  { english: "My name is John", translation: "Meu nome é John" },
-  { english: "I like to play", translation: "Eu gosto de brincar" },
-  { english: "The cat is black", translation: "O gato é preto" },
-  { english: "I am happy today", translation: "Eu estou feliz hoje" },
-  { english: "Good morning!", translation: "Bom dia!" },
-];
+type ModuleKey = "crianca" | "adolescente" | "adulto";
+
+type Phrase = {
+  english: string;
+  translation: string;
+};
+
+const phraseBank: Record<ModuleKey, Record<number, Phrase[]>> = {
+  crianca: {
+    1: [
+      { english: "Good morning!", translation: "Bom dia!" },
+      { english: "My name is Ana.", translation: "Meu nome é Ana." },
+      { english: "I like to play.", translation: "Eu gosto de brincar." },
+      { english: "The cat is black.", translation: "O gato é preto." },
+      { english: "I am happy today.", translation: "Eu estou feliz hoje." },
+    ],
+    2: [
+      { english: "Can I have water, please?", translation: "Posso tomar água, por favor?" },
+      { english: "I want to go to the park.", translation: "Eu quero ir ao parque." },
+      { english: "My favorite color is blue.", translation: "Minha cor favorita é azul." },
+      { english: "I can jump and run.", translation: "Eu consigo pular e correr." },
+      { english: "Let’s play together!", translation: "Vamos brincar juntos!" },
+    ],
+    3: [
+      { english: "Today I will learn something new.", translation: "Hoje eu vou aprender algo novo." },
+      { english: "I am brave and I can try again.", translation: "Eu sou corajoso(a) e posso tentar de novo." },
+      { english: "I like reading books before bed.", translation: "Eu gosto de ler livros antes de dormir." },
+      { english: "Please help me with this.", translation: "Por favor, me ajude com isso." },
+      { english: "I did my homework!", translation: "Eu fiz minha lição de casa!" },
+    ],
+  },
+  adolescente: {
+    1: [
+      { english: "Nice to meet you.", translation: "Prazer em te conhecer." },
+      { english: "I am from Brazil.", translation: "Eu sou do Brasil." },
+      { english: "What do you like to do?", translation: "O que você gosta de fazer?" },
+      { english: "I like music and movies.", translation: "Eu gosto de música e filmes." },
+      { english: "See you later!", translation: "Até mais!" },
+    ],
+    2: [
+      { english: "I study in the morning.", translation: "Eu estudo de manhã." },
+      { english: "I’m learning English every day.", translation: "Eu estou aprendendo inglês todos os dias." },
+      { english: "Could you repeat that, please?", translation: "Você pode repetir isso, por favor?" },
+      { english: "I didn’t understand the last part.", translation: "Eu não entendi a última parte." },
+      { english: "Let’s practice together.", translation: "Vamos praticar juntos." },
+    ],
+    3: [
+      { english: "I’m trying to improve my pronunciation.", translation: "Estou tentando melhorar minha pronúncia." },
+      { english: "I want to speak with more confidence.", translation: "Eu quero falar com mais confiança." },
+      { english: "What’s your opinion about this?", translation: "Qual a sua opinião sobre isso?" },
+      { english: "I agree, but I have a question.", translation: "Eu concordo, mas tenho uma pergunta." },
+      { english: "That makes sense to me.", translation: "Isso faz sentido para mim." },
+    ],
+  },
+  adulto: {
+    1: [
+      { english: "How can I help you?", translation: "Como posso ajudar?" },
+      { english: "I would like a coffee, please.", translation: "Eu gostaria de um café, por favor." },
+      { english: "Where is the bathroom?", translation: "Onde fica o banheiro?" },
+      { english: "I’m here for a meeting.", translation: "Estou aqui para uma reunião." },
+      { english: "Thank you very much.", translation: "Muito obrigado(a)." },
+    ],
+    2: [
+      { english: "Could you send me an email?", translation: "Você pode me enviar um email?" },
+      { english: "Let’s schedule a call.", translation: "Vamos agendar uma ligação." },
+      { english: "I will be there in ten minutes.", translation: "Eu estarei aí em dez minutos." },
+      { english: "I need more information about this.", translation: "Eu preciso de mais informações sobre isso." },
+      { english: "I’m available this afternoon.", translation: "Estou disponível esta tarde." },
+    ],
+    3: [
+      { english: "I’m working on it and I will update you.", translation: "Estou trabalhando nisso e vou te atualizar." },
+      { english: "Can we review this together?", translation: "Podemos revisar isso juntos?" },
+      { english: "I’m not sure, but I can check.", translation: "Não tenho certeza, mas posso verificar." },
+      { english: "Let’s focus on the main goal.", translation: "Vamos focar no objetivo principal." },
+      { english: "I appreciate your help.", translation: "Eu agradeço a sua ajuda." },
+    ],
+  },
+};
+
+const getPhrasesFor = (module: ModuleKey | null, level: number | null) => {
+  const moduleKey: ModuleKey = module ?? "crianca";
+  const rawLevel = level ?? 1;
+  const normalizedLevel = Math.max(1, Math.min(10, rawLevel));
+  const byLevel = phraseBank[moduleKey];
+  return byLevel[normalizedLevel] ?? byLevel[Math.min(3, normalizedLevel)] ?? byLevel[1];
+};
 
 type Feedback = "correct" | "almost" | "wrong" | null;
 
@@ -75,9 +155,74 @@ const LessonPage = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const phrase = phrases[currentPhrase];
+  const [module, setModule] = useState<ModuleKey | null>(null);
+  const [level, setLevel] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const phrases = useMemo(() => getPhrasesFor(module, level), [module, level]);
+  const phaseCount = phrases.length;
+  const isLevelCompleted = currentPhrase >= phaseCount;
+  const phrase = isLevelCompleted ? null : phrases[currentPhrase];
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      if (!supabase) {
+        if (!mounted) return;
+        toast({ title: "Configuração pendente", description: "Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY." });
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!mounted) return;
+      const userId = sessionData.session?.user.id;
+      if (!userId) {
+        navigate("/login");
+        return;
+      }
+
+      const { data: pathData } = await supabase.from("user_learning_path").select("module, level").eq("user_id", userId).maybeSingle();
+      if (!mounted) return;
+
+      const selectedModule = (pathData?.module as ModuleKey | undefined) ?? null;
+      const selectedLevel = (pathData?.level as number | undefined) ?? null;
+      setModule(selectedModule);
+      setLevel(selectedLevel);
+
+      if (!selectedModule || !selectedLevel) {
+        setIsLoading(false);
+        return;
+      }
+
+      const phaseCountForSelection = getPhrasesFor(selectedModule, selectedLevel).length;
+
+      const { data: progressData } = await supabase
+        .from("user_level_progress")
+        .select("current_phase, completed")
+        .eq("user_id", userId)
+        .eq("module", selectedModule)
+        .eq("level", selectedLevel)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      const currentPhase = Number(progressData?.current_phase ?? 0);
+      const completed = Boolean(progressData?.completed);
+      setCurrentPhrase(
+        completed ? phaseCountForSelection : Math.min(Math.max(currentPhase, 0), phaseCountForSelection),
+      );
+      setIsLoading(false);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
 
   const handleListen = async () => {
+    if (!phrase) return;
     setIsSpeaking(true);
     try {
       await speak(phrase.english, { lang: "en-US" });
@@ -91,8 +236,27 @@ const LessonPage = () => {
     }
   };
 
+  const persistPhaseProgress = async (nextPhase: number, completed: boolean) => {
+    if (!supabase || !module || !level) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) return;
+
+    await supabase.from("user_level_progress").upsert(
+      {
+        user_id: userId,
+        module,
+        level,
+        current_phase: nextPhase,
+        completed,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,module,level" },
+    );
+  };
+
   const handleRecord = () => {
-    if (isRecording) return;
+    if (isRecording || !phrase) return;
     setIsRecording(true);
     setFeedback(null);
 
@@ -105,8 +269,11 @@ const LessonPage = () => {
         if (result === "correct") setPoints((p) => p + 10);
         if (result === "almost") setPoints((p) => p + 5);
         if (result === "correct") {
+          const nextPhase = Math.min(currentPhrase + 1, phaseCount);
+          const completed = nextPhase >= phaseCount;
+          await persistPhaseProgress(nextPhase, completed);
           setTimeout(() => {
-            handleNext();
+            handleNext(nextPhase);
           }, 700);
         }
       } catch (e) {
@@ -120,9 +287,60 @@ const LessonPage = () => {
     })();
   };
 
-  const handleNext = () => {
+  const handleNext = (nextPhase?: number) => {
     setFeedback(null);
-    setCurrentPhrase((c) => (c + 1) % phrases.length);
+    if (typeof nextPhase === "number") {
+      setCurrentPhrase(nextPhase);
+      return;
+    }
+    const phase = Math.min(currentPhrase + 1, phaseCount);
+    void persistPhaseProgress(phase, phase >= phaseCount);
+    setCurrentPhrase(phase);
+  };
+
+  const handleRestartLevel = async () => {
+    setFeedback(null);
+    setCurrentPhrase(0);
+    setPoints(0);
+    await persistPhaseProgress(0, false);
+  };
+
+  const handleNextLevel = async () => {
+    if (!supabase || !module || !level) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) {
+      navigate("/login");
+      return;
+    }
+
+    const nextLevel = level + 1;
+    const { error } = await supabase
+      .from("user_learning_path")
+      .update({ level: nextLevel, updated_at: new Date().toISOString() })
+      .eq("user_id", userId);
+
+    if (error) {
+      toast({ title: "Não foi possível avançar de nível", description: error.message });
+      return;
+    }
+
+    await supabase.from("user_level_progress").upsert(
+      {
+        user_id: userId,
+        module,
+        level: nextLevel,
+        current_phase: 0,
+        completed: false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,module,level" },
+    );
+
+    setLevel(nextLevel);
+    setCurrentPhrase(0);
+    setFeedback(null);
+    setPoints(0);
   };
 
   return (
@@ -141,7 +359,7 @@ const LessonPage = () => {
           </div>
           <div className="flex items-center gap-2">
             <Trophy className="h-6 w-6 text-primary" fill="hsl(var(--primary))" />
-            <span className="font-display font-bold text-foreground">Nível 1</span>
+            <span className="font-display font-bold text-foreground">{level ? `Nível ${level}` : "Nível"}</span>
           </div>
         </div>
 
@@ -149,18 +367,29 @@ const LessonPage = () => {
         <div className="mb-8 h-4 overflow-hidden rounded-full bg-secondary">
           <div
             className="h-full rounded-full bg-success transition-all duration-500"
-            style={{ width: `${((currentPhrase + 1) / phrases.length) * 100}%` }}
+            style={{ width: `${(Math.min(currentPhrase, phaseCount) / phaseCount) * 100}%` }}
           />
         </div>
 
         {/* Lesson card */}
         <div className="mx-auto max-w-md">
           <div className="rounded-3xl border-2 border-border bg-card p-8 text-center shadow-lg">
-            <p className="mb-2 font-body text-sm text-muted-foreground">Repita a frase:</p>
-            <h2 className="mb-2 font-display text-3xl font-bold text-primary animate-bounce-in">
-              "{phrase.english}"
-            </h2>
-            <p className="mb-8 font-body text-muted-foreground">{phrase.translation}</p>
+            {isLoading ? (
+              <p className="font-body text-muted-foreground">Carregando...</p>
+            ) : isLevelCompleted ? (
+              <>
+                <h2 className="mb-2 font-display text-3xl font-bold text-success">Nível concluído ✅</h2>
+                <p className="mb-8 font-body text-muted-foreground">Você completou todas as fases deste nível.</p>
+              </>
+            ) : phrase ? (
+              <>
+                <p className="mb-2 font-body text-sm text-muted-foreground">Repita a frase:</p>
+                <h2 className="mb-2 font-display text-3xl font-bold text-primary animate-bounce-in">
+                  "{phrase.english}"
+                </h2>
+                <p className="mb-8 font-body text-muted-foreground">{phrase.translation}</p>
+              </>
+            ) : null}
 
             {/* Buttons */}
             <div className="flex flex-col gap-4">
@@ -172,7 +401,7 @@ const LessonPage = () => {
                 size="xl"
                 className="w-full"
                 onClick={handleRecord}
-                disabled={isRecording || isSpeaking}
+                disabled={isRecording || isSpeaking || isLoading || isLevelCompleted}
               >
                 <Mic className="h-6 w-6" />
                 {isRecording ? "Gravando..." : "Falar 🎤"}
@@ -217,6 +446,17 @@ const LessonPage = () => {
               </div>
             ))}
           </div>
+
+          {isLevelCompleted ? (
+            <div className="mt-6 flex w-full flex-col gap-3">
+              <Button variant="hero" size="lg" className="w-full" onClick={handleNextLevel} disabled={!level}>
+                Próximo nível →
+              </Button>
+              <Button variant="outline" size="lg" className="w-full" onClick={handleRestartLevel}>
+                Refazer nível
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
