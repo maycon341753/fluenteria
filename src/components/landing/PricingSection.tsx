@@ -7,7 +7,7 @@ const plans = [
     emoji: "🟢",
     price: "R$ 0",
     period: "",
-    features: ["Acesso a 1 nível", "5 lições por dia", "Gamificação básica"],
+    features: ["Acesso a 1 nível", "5 lições por dia durante 10 dias", "Gamificação básica"],
     variant: "outline" as const,
     popular: false,
   },
