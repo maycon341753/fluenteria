@@ -15,84 +15,185 @@ type Phrase = {
   translation: string;
 };
 
-const phraseBank: Record<ModuleKey, Record<number, Phrase[]>> = {
-  crianca: {
-    1: [
-      { english: "Good morning!", translation: "Bom dia!" },
-      { english: "My name is Ana.", translation: "Meu nome é Ana." },
-      { english: "I like to play.", translation: "Eu gosto de brincar." },
-      { english: "The cat is black.", translation: "O gato é preto." },
-      { english: "I am happy today.", translation: "Eu estou feliz hoje." },
-    ],
-    2: [
-      { english: "Can I have water, please?", translation: "Posso tomar água, por favor?" },
-      { english: "I want to go to the park.", translation: "Eu quero ir ao parque." },
-      { english: "My favorite color is blue.", translation: "Minha cor favorita é azul." },
-      { english: "I can jump and run.", translation: "Eu consigo pular e correr." },
-      { english: "Let’s play together!", translation: "Vamos brincar juntos!" },
-    ],
-    3: [
-      { english: "Today I will learn something new.", translation: "Hoje eu vou aprender algo novo." },
-      { english: "I am brave and I can try again.", translation: "Eu sou corajoso(a) e posso tentar de novo." },
-      { english: "I like reading books before bed.", translation: "Eu gosto de ler livros antes de dormir." },
-      { english: "Please help me with this.", translation: "Por favor, me ajude com isso." },
-      { english: "I did my homework!", translation: "Eu fiz minha lição de casa!" },
-    ],
-  },
-  adolescente: {
-    1: [
-      { english: "Nice to meet you.", translation: "Prazer em te conhecer." },
-      { english: "I am from Brazil.", translation: "Eu sou do Brasil." },
-      { english: "What do you like to do?", translation: "O que você gosta de fazer?" },
-      { english: "I like music and movies.", translation: "Eu gosto de música e filmes." },
-      { english: "See you later!", translation: "Até mais!" },
-    ],
-    2: [
-      { english: "I study in the morning.", translation: "Eu estudo de manhã." },
-      { english: "I’m learning English every day.", translation: "Eu estou aprendendo inglês todos os dias." },
-      { english: "Could you repeat that, please?", translation: "Você pode repetir isso, por favor?" },
-      { english: "I didn’t understand the last part.", translation: "Eu não entendi a última parte." },
-      { english: "Let’s practice together.", translation: "Vamos praticar juntos." },
-    ],
-    3: [
-      { english: "I’m trying to improve my pronunciation.", translation: "Estou tentando melhorar minha pronúncia." },
-      { english: "I want to speak with more confidence.", translation: "Eu quero falar com mais confiança." },
-      { english: "What’s your opinion about this?", translation: "Qual a sua opinião sobre isso?" },
-      { english: "I agree, but I have a question.", translation: "Eu concordo, mas tenho uma pergunta." },
-      { english: "That makes sense to me.", translation: "Isso faz sentido para mim." },
-    ],
-  },
-  adulto: {
-    1: [
-      { english: "How can I help you?", translation: "Como posso ajudar?" },
-      { english: "I would like a coffee, please.", translation: "Eu gostaria de um café, por favor." },
-      { english: "Where is the bathroom?", translation: "Onde fica o banheiro?" },
-      { english: "I’m here for a meeting.", translation: "Estou aqui para uma reunião." },
-      { english: "Thank you very much.", translation: "Muito obrigado(a)." },
-    ],
-    2: [
-      { english: "Could you send me an email?", translation: "Você pode me enviar um email?" },
-      { english: "Let’s schedule a call.", translation: "Vamos agendar uma ligação." },
-      { english: "I will be there in ten minutes.", translation: "Eu estarei aí em dez minutos." },
-      { english: "I need more information about this.", translation: "Eu preciso de mais informações sobre isso." },
-      { english: "I’m available this afternoon.", translation: "Estou disponível esta tarde." },
-    ],
-    3: [
-      { english: "I’m working on it and I will update you.", translation: "Estou trabalhando nisso e vou te atualizar." },
-      { english: "Can we review this together?", translation: "Podemos revisar isso juntos?" },
-      { english: "I’m not sure, but I can check.", translation: "Não tenho certeza, mas posso verificar." },
-      { english: "Let’s focus on the main goal.", translation: "Vamos focar no objetivo principal." },
-      { english: "I appreciate your help.", translation: "Eu agradeço a sua ajuda." },
-    ],
-  },
+type Word = { en: string; pt: string };
+
+const getDifficulty = (level: number) => {
+  if (level <= 1) return "easy";
+  if (level === 2) return "medium";
+  return "hard";
 };
 
-const getPhrasesFor = (module: ModuleKey | null, level: number | null) => {
+const childAnimals: Word[] = [
+  { en: "cat", pt: "gato" },
+  { en: "dog", pt: "cachorro" },
+  { en: "bird", pt: "pássaro" },
+  { en: "fish", pt: "peixe" },
+  { en: "rabbit", pt: "coelho" },
+  { en: "turtle", pt: "tartaruga" },
+  { en: "lion", pt: "leão" },
+  { en: "monkey", pt: "macaco" },
+  { en: "bear", pt: "urso" },
+  { en: "frog", pt: "sapo" },
+];
+
+const childColors: Word[] = [
+  { en: "red", pt: "vermelho" },
+  { en: "blue", pt: "azul" },
+  { en: "green", pt: "verde" },
+  { en: "yellow", pt: "amarelo" },
+  { en: "pink", pt: "rosa" },
+  { en: "purple", pt: "roxo" },
+  { en: "orange", pt: "laranja" },
+  { en: "black", pt: "preto" },
+  { en: "white", pt: "branco" },
+  { en: "brown", pt: "marrom" },
+];
+
+const childToys: Word[] = [
+  { en: "ball", pt: "bola" },
+  { en: "doll", pt: "boneca" },
+  { en: "kite", pt: "pipa" },
+  { en: "bike", pt: "bicicleta" },
+  { en: "car", pt: "carrinho" },
+  { en: "puzzle", pt: "quebra-cabeça" },
+  { en: "book", pt: "livro" },
+  { en: "robot", pt: "robô" },
+  { en: "blocks", pt: "blocos" },
+  { en: "train", pt: "trem" },
+];
+
+const teenHobbies: Word[] = [
+  { en: "music", pt: "música" },
+  { en: "movies", pt: "filmes" },
+  { en: "sports", pt: "esportes" },
+  { en: "games", pt: "jogos" },
+  { en: "reading", pt: "leitura" },
+  { en: "drawing", pt: "desenho" },
+  { en: "dancing", pt: "dança" },
+  { en: "coding", pt: "programação" },
+  { en: "photography", pt: "fotografia" },
+  { en: "travel", pt: "viagem" },
+];
+
+const adultWork: Word[] = [
+  { en: "meeting", pt: "reunião" },
+  { en: "email", pt: "email" },
+  { en: "deadline", pt: "prazo" },
+  { en: "project", pt: "projeto" },
+  { en: "client", pt: "cliente" },
+  { en: "report", pt: "relatório" },
+  { en: "schedule", pt: "agenda" },
+  { en: "budget", pt: "orçamento" },
+  { en: "proposal", pt: "proposta" },
+  { en: "presentation", pt: "apresentação" },
+];
+
+const pick = <T,>(list: T[], idx: number) => list[idx % list.length];
+
+const generateChildPhrase = (difficulty: "easy" | "medium" | "hard", idx: number) => {
+  const animal = pick(childAnimals, idx);
+  const color = pick(childColors, idx + 3);
+  const toy = pick(childToys, idx + 7);
+
+  if (difficulty === "easy") {
+    const t = idx % 5;
+    if (t === 0) return { english: `I see a ${color.en} ${animal.en}.`, translation: `Eu vejo um ${animal.pt} ${color.pt}.` };
+    if (t === 1) return { english: `I like my ${toy.en}.`, translation: `Eu gosto do meu/minha ${toy.pt}.` };
+    if (t === 2) return { english: `The ${animal.en} is ${color.en}.`, translation: `O ${animal.pt} é ${color.pt}.` };
+    if (t === 3) return { english: `I can play with a ${toy.en}.`, translation: `Eu consigo brincar com um/uma ${toy.pt}.` };
+    return { english: `Hello! I like the ${color.en} ${toy.en}.`, translation: `Olá! Eu gosto do/a ${toy.pt} ${color.pt}.` };
+  }
+
+  if (difficulty === "medium") {
+    const t = idx % 5;
+    if (t === 0) return { english: `Can I play with the ${toy.en}, please?`, translation: `Posso brincar com o/a ${toy.pt}, por favor?` };
+    if (t === 1) return { english: `I want to go to the park with my ${toy.en}.`, translation: `Eu quero ir ao parque com o/a meu/minha ${toy.pt}.` };
+    if (t === 2) return { english: `My favorite ${animal.en} is the ${color.en} one.`, translation: `Meu ${animal.pt} favorito é o ${color.pt}.` };
+    if (t === 3) return { english: `I can jump, run, and play.`, translation: `Eu consigo pular, correr e brincar.` };
+    return { english: `Let’s share and be kind.`, translation: `Vamos compartilhar e ser gentis.` };
+  }
+
+  const t = idx % 5;
+  if (t === 0) return { english: `Today I will practice English and play with my ${toy.en}.`, translation: `Hoje eu vou praticar inglês e brincar com o/a meu/minha ${toy.pt}.` };
+  if (t === 1) return { english: `If I make a mistake, I can try again with a ${color.en} smile.`, translation: `Se eu errar, eu posso tentar de novo com um sorriso ${color.pt}.` };
+  if (t === 2) return { english: `I like reading a ${toy.en} book before I sleep.`, translation: `Eu gosto de ler um livro de ${toy.pt} antes de dormir.` };
+  if (t === 3) return { english: `Please help me understand the ${color.en} ${animal.en} sentence.`, translation: `Por favor, me ajude a entender a frase do ${animal.pt} ${color.pt}.` };
+  return { english: `I feel proud when I learn something new about a ${animal.en}.`, translation: `Eu me sinto orgulhoso(a) quando aprendo algo novo sobre um ${animal.pt}.` };
+};
+
+const generateTeenPhrase = (difficulty: "easy" | "medium" | "hard", idx: number) => {
+  const hobby = pick(teenHobbies, idx);
+
+  if (difficulty === "easy") {
+    const t = idx % 5;
+    if (t === 0) return { english: `Nice to meet you. I like ${hobby.en}.`, translation: `Prazer em te conhecer. Eu gosto de ${hobby.pt}.` };
+    if (t === 1) return { english: `I like ${hobby.en}.`, translation: `Eu gosto de ${hobby.pt}.` };
+    if (t === 2) return { english: `What do you like to do?`, translation: `O que você gosta de fazer?` };
+    if (t === 3) return { english: `I study in the morning.`, translation: `Eu estudo de manhã.` };
+    return { english: `See you later! Let’s talk about ${hobby.en}.`, translation: `Até mais! Vamos falar sobre ${hobby.pt}.` };
+  }
+
+  if (difficulty === "medium") {
+    const t = idx % 5;
+    if (t === 0) return { english: `I’m learning English every day to talk about ${hobby.en}.`, translation: `Eu estou aprendendo inglês todos os dias para falar sobre ${hobby.pt}.` };
+    if (t === 1) return { english: `Could you repeat that about ${hobby.en}, please?`, translation: `Você pode repetir isso sobre ${hobby.pt}, por favor?` };
+    if (t === 2) return { english: `I didn’t understand the last part about ${hobby.en}.`, translation: `Eu não entendi a última parte sobre ${hobby.pt}.` };
+    if (t === 3) return { english: `Let’s practice together after class using ${hobby.en}.`, translation: `Vamos praticar juntos depois da aula usando ${hobby.pt}.` };
+    return { english: `I’m feeling more confident when I talk about ${hobby.en}.`, translation: `Eu me sinto mais confiante quando falo sobre ${hobby.pt}.` };
+  }
+
+  const t = idx % 5;
+  if (t === 0) return { english: `In my opinion, this idea is helpful.`, translation: `Na minha opinião, essa ideia é útil.` };
+  if (t === 1) return { english: `I agree, but I have a question about it.`, translation: `Eu concordo, mas tenho uma pergunta sobre isso.` };
+  if (t === 2) return { english: `I’m trying to improve my pronunciation when I talk about ${hobby.en}.`, translation: `Estou tentando melhorar minha pronúncia quando falo sobre ${hobby.pt}.` };
+  if (t === 3) return { english: `That makes sense to me, thanks for explaining.`, translation: `Isso faz sentido para mim, obrigado(a) por explicar.` };
+  return { english: `I want to speak with more confidence about ${hobby.en}.`, translation: `Eu quero falar com mais confiança sobre ${hobby.pt}.` };
+};
+
+const generateAdultPhrase = (difficulty: "easy" | "medium" | "hard", idx: number) => {
+  const topic = pick(adultWork, idx);
+
+  if (difficulty === "easy") {
+    const t = idx % 5;
+    if (t === 0) return { english: `How can I help you with the ${topic.en}?`, translation: `Como posso ajudar com o(a) ${topic.pt}?` };
+    if (t === 1) return { english: `I would like a coffee, please.`, translation: `Eu gostaria de um café, por favor.` };
+    if (t === 2) return { english: `Where is the bathroom?`, translation: `Onde fica o banheiro?` };
+    if (t === 3) return { english: `Thank you for the ${topic.en}.`, translation: `Obrigado(a) pelo(a) ${topic.pt}.` };
+    return { english: `I’m here for a ${topic.en}.`, translation: `Estou aqui para uma ${topic.pt}.` };
+  }
+
+  if (difficulty === "medium") {
+    const t = idx % 5;
+    if (t === 0) return { english: `Could you send me an ${topic.en}?`, translation: `Você pode me enviar um(a) ${topic.pt}?` };
+    if (t === 1) return { english: `Let’s schedule a call for tomorrow.`, translation: `Vamos agendar uma ligação para amanhã.` };
+    if (t === 2) return { english: `I will be there in ten minutes.`, translation: `Eu estarei aí em dez minutos.` };
+    if (t === 3) return { english: `I need more information about this ${topic.en}.`, translation: `Eu preciso de mais informações sobre este/esta ${topic.pt}.` };
+    return { english: `I’m available this afternoon.`, translation: `Estou disponível esta tarde.` };
+  }
+
+  const t = idx % 5;
+  if (t === 0) return { english: `I’m working on the ${topic.en} and I will update you soon.`, translation: `Estou trabalhando no(a) ${topic.pt} e vou te atualizar em breve.` };
+  if (t === 1) return { english: `Can we review this together before the ${topic.en}?`, translation: `Podemos revisar isso juntos antes do(a) ${topic.pt}?` };
+  if (t === 2) return { english: `I’m not sure, but I can check and confirm.`, translation: `Não tenho certeza, mas posso verificar e confirmar.` };
+  if (t === 3) return { english: `Let’s focus on the main goal and the next steps.`, translation: `Vamos focar no objetivo principal e nos próximos passos.` };
+  return { english: `I appreciate your help with this ${topic.en}.`, translation: `Eu agradeço sua ajuda com este/esta ${topic.pt}.` };
+};
+
+const getPhrasesFor = (module: ModuleKey | null, level: number | null, lessonNo: number | null) => {
   const moduleKey: ModuleKey = module ?? "crianca";
-  const rawLevel = level ?? 1;
-  const normalizedLevel = Math.max(1, Math.min(10, rawLevel));
-  const byLevel = phraseBank[moduleKey];
-  return byLevel[normalizedLevel] ?? byLevel[Math.min(3, normalizedLevel)] ?? byLevel[1];
+  const normalizedLevel = Math.max(1, Math.min(10, level ?? 1));
+  const difficulty = getDifficulty(normalizedLevel);
+  const baseLesson = Math.max(1, lessonNo ?? 1);
+  const baseIndex = (baseLesson - 1) * 5;
+
+  const phrases: Phrase[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    const idx = baseIndex + i;
+    if (moduleKey === "crianca") phrases.push(generateChildPhrase(difficulty, idx));
+    if (moduleKey === "adolescente") phrases.push(generateTeenPhrase(difficulty, idx));
+    if (moduleKey === "adulto") phrases.push(generateAdultPhrase(difficulty, idx));
+  }
+  return phrases;
 };
 
 type Feedback = "correct" | "almost" | "wrong" | null;
@@ -166,11 +267,61 @@ const LessonPage = () => {
   const [lessonIdsInLevel, setLessonIdsInLevel] = useState<string[]>([]);
   const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
   const [isLevelFinished, setIsLevelFinished] = useState(false);
+  const [dbPhrases, setDbPhrases] = useState<Phrase[] | null>(null);
+  const [isPhrasesLoading, setIsPhrasesLoading] = useState(false);
+  const [pendingPhase, setPendingPhase] = useState<number | null>(null);
 
-  const phrases = useMemo(() => getPhrasesFor(module, level), [module, level]);
+  const fallbackPhrases = useMemo(() => getPhrasesFor(module, level, lessonNo), [module, level, lessonNo]);
+  const phrases = useMemo(() => (dbPhrases && dbPhrases.length ? dbPhrases : fallbackPhrases), [dbPhrases, fallbackPhrases]);
   const phaseCount = phrases.length;
   const isLessonCompleted = currentPhrase >= phaseCount;
   const phrase = isLessonCompleted ? null : phrases[currentPhrase];
+
+  useEffect(() => {
+    if (pendingPhase === null) return;
+    setCurrentPhrase(Math.min(Math.max(pendingPhase, 0), phaseCount));
+    setPendingPhase(null);
+  }, [pendingPhase, phaseCount]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      if (!supabase || !lessonId) {
+        if (!mounted) return;
+        setDbPhrases(null);
+        setIsPhrasesLoading(false);
+        return;
+      }
+
+      setIsPhrasesLoading(true);
+      const { data, error } = await supabase
+        .from("lesson_items")
+        .select("item_no, english, translation")
+        .eq("lesson_id", lessonId)
+        .order("item_no", { ascending: true });
+
+      if (!mounted) return;
+
+      if (error) {
+        setDbPhrases(null);
+        setIsPhrasesLoading(false);
+        return;
+      }
+
+      const rows = (data ?? []) as Array<{ item_no: number; english: string | null; translation: string | null }>;
+      const mapped = rows
+        .filter((r) => Boolean(r.english) && Boolean(r.translation))
+        .map((r) => ({ english: r.english as string, translation: r.translation as string }));
+
+      setDbPhrases(mapped.length ? mapped : null);
+      setIsPhrasesLoading(false);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [lessonId]);
 
   useEffect(() => {
     let mounted = true;
@@ -200,13 +351,14 @@ const LessonPage = () => {
       setModule(selectedModule);
       setLevel(selectedLevel);
       setIsLevelFinished(false);
+      setDbPhrases(null);
 
       if (!selectedModule || !selectedLevel) {
         setIsLoading(false);
         return;
       }
 
-      const phaseCountForSelection = getPhrasesFor(selectedModule, selectedLevel).length;
+      const phaseCountForSelection = getPhrasesFor(selectedModule, selectedLevel, 1).length;
 
       const { data: lessonsData, error: lessonsError } = await supabase
         .from("lessons")
@@ -275,7 +427,7 @@ const LessonPage = () => {
         const row = byId.get(chosen.id);
         const currentStatus = row?.status ?? "not_started";
         const savedPhase = row?.current_phase ?? 0;
-        setCurrentPhrase(Math.min(Math.max(savedPhase, 0), phaseCountForSelection));
+        setPendingPhase(currentStatus === "completed" ? 999 : savedPhase);
 
         if (currentStatus !== "completed") {
           if (currentStatus === "not_started") {
@@ -294,13 +446,13 @@ const LessonPage = () => {
             await supabase.from("user_lesson_progress").update({ updated_at: new Date().toISOString() }).eq("user_id", sessionUserId).eq("lesson_id", chosen.id);
           }
         } else {
-          setCurrentPhrase(phaseCountForSelection);
+          setPendingPhase(999);
         }
       } else {
         setLessonId(null);
         setLessonNo(null);
         setIsLevelFinished(true);
-        setCurrentPhrase(phaseCountForSelection);
+        setPendingPhase(999);
         setIsLoading(false);
         return;
       }
@@ -405,10 +557,11 @@ const LessonPage = () => {
     setIsLevelFinished(false);
     setLessonId(next.id);
     setLessonNo(next.lesson_no);
+    setDbPhrases(null);
     setPoints(0);
     setFeedback(null);
     const savedPhase = statusById.get(next.id)?.current_phase ?? 0;
-    setCurrentPhrase(Math.min(Math.max(savedPhase, 0), phaseCount));
+    setPendingPhase(savedPhase);
     if ((statusById.get(next.id)?.status ?? "not_started") === "not_started") {
       await supabase.from("user_lesson_progress").upsert(
         {
@@ -600,7 +753,7 @@ const LessonPage = () => {
                 Lição {lessonNo} de {totalLessons}
               </p>
             ) : null}
-            {isLoading ? (
+            {isLoading || isPhrasesLoading ? (
               <p className="font-body text-muted-foreground">Carregando...</p>
             ) : isLevelFinished ? (
               <>
@@ -648,7 +801,7 @@ const LessonPage = () => {
                 size="xl"
                 className="w-full"
                 onClick={handleRecord}
-                disabled={isRecording || isSpeaking || isLoading || isLevelFinished || isLessonCompleted}
+                disabled={isRecording || isSpeaking || isLoading || isPhrasesLoading || isLevelFinished || isLessonCompleted}
               >
                 <Mic className="h-6 w-6" />
                 {isRecording ? "Gravando..." : "Falar 🎤"}
