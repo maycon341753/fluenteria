@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Volume2, Mic, ArrowLeft, Star, Flame, Trophy } from "lucide-react";
 import Navbar from "@/components/landing/Navbar";
+import { speak } from "@/lib/speak";
+import { toast } from "@/hooks/use-toast";
+import { recognizeSpeech } from "@/lib/recognizeSpeech";
 
 const phrases = [
   { english: "My name is John", translation: "Meu nome é John" },
@@ -20,6 +23,49 @@ const feedbackConfig = {
   wrong: { emoji: "❌", text: "Tente novamente!", color: "bg-destructive/20 border-destructive text-destructive" },
 };
 
+const normalizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const levenshteinDistance = (a: string, b: string) => {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+
+  const aLen = a.length;
+  const bLen = b.length;
+  const prev = new Array<number>(bLen + 1);
+  const curr = new Array<number>(bLen + 1);
+
+  for (let j = 0; j <= bLen; j += 1) prev[j] = j;
+
+  for (let i = 1; i <= aLen; i += 1) {
+    curr[0] = i;
+    const aChar = a.charCodeAt(i - 1);
+    for (let j = 1; j <= bLen; j += 1) {
+      const cost = aChar === b.charCodeAt(j - 1) ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= bLen; j += 1) prev[j] = curr[j];
+  }
+
+  return prev[bLen];
+};
+
+const similarity = (a: string, b: string) => {
+  const na = normalizeText(a);
+  const nb = normalizeText(b);
+  if (!na || !nb) return 0;
+  const dist = levenshteinDistance(na, nb);
+  const maxLen = Math.max(na.length, nb.length);
+  return maxLen === 0 ? 1 : 1 - dist / maxLen;
+};
+
 const LessonPage = () => {
   const navigate = useNavigate();
   const [currentPhrase, setCurrentPhrase] = useState(0);
@@ -27,25 +73,51 @@ const LessonPage = () => {
   const [points, setPoints] = useState(0);
   const [streak, setStreak] = useState(3);
   const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const phrase = phrases[currentPhrase];
 
-  const handleListen = () => {
-    // Mock: would use speech synthesis API
+  const handleListen = async () => {
+    setIsSpeaking(true);
+    try {
+      await speak(phrase.english, { lang: "en-US" });
+    } catch (e) {
+      toast({
+        title: "Não foi possível reproduzir o áudio",
+        description: e instanceof Error ? e.message : "Tente novamente.",
+      });
+    } finally {
+      setIsSpeaking(false);
+    }
   };
 
   const handleRecord = () => {
+    if (isRecording) return;
     setIsRecording(true);
     setFeedback(null);
-    setTimeout(() => {
-      setIsRecording(false);
-      // Mock random feedback
-      const results: Feedback[] = ["correct", "correct", "correct", "almost", "wrong"];
-      const result = results[Math.floor(Math.random() * results.length)];
-      setFeedback(result);
-      if (result === "correct") setPoints((p) => p + 10);
-      if (result === "almost") setPoints((p) => p + 5);
-    }, 2000);
+
+    (async () => {
+      try {
+        const transcript = await recognizeSpeech({ lang: "en-US" });
+        const score = similarity(transcript, phrase.english);
+        const result: Feedback = score >= 0.85 ? "correct" : score >= 0.65 ? "almost" : "wrong";
+        setFeedback(result);
+        if (result === "correct") setPoints((p) => p + 10);
+        if (result === "almost") setPoints((p) => p + 5);
+        if (result === "correct") {
+          setTimeout(() => {
+            handleNext();
+          }, 700);
+        }
+      } catch (e) {
+        toast({
+          title: "Não foi possível usar o microfone",
+          description: e instanceof Error ? e.message : "Tente novamente.",
+        });
+      } finally {
+        setIsRecording(false);
+      }
+    })();
   };
 
   const handleNext = () => {
@@ -92,7 +164,7 @@ const LessonPage = () => {
 
             {/* Buttons */}
             <div className="flex flex-col gap-4">
-              <Button variant="default" size="xl" className="w-full" onClick={handleListen}>
+              <Button variant="default" size="xl" className="w-full" onClick={handleListen} disabled={isSpeaking}>
                 <Volume2 className="h-6 w-6" /> Ouvir 🎧
               </Button>
               <Button
@@ -100,7 +172,7 @@ const LessonPage = () => {
                 size="xl"
                 className="w-full"
                 onClick={handleRecord}
-                disabled={isRecording}
+                disabled={isRecording || isSpeaking}
               >
                 <Mic className="h-6 w-6" />
                 {isRecording ? "Gravando..." : "Falar 🎤"}
