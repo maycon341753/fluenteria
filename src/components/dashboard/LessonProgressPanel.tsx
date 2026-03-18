@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 
 type ModuleKey = "crianca" | "adolescente" | "adulto";
 
@@ -28,6 +29,7 @@ const LessonProgressPanel = ({ module }: Props) => {
   const [level, setLevel] = useState<number | null>(null);
   const [lessons, setLessons] = useState<LessonRow[]>([]);
   const [progressByLessonId, setProgressByLessonId] = useState<Record<string, ProgressRow>>({});
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -48,6 +50,7 @@ const LessonProgressPanel = ({ module }: Props) => {
         navigate("/login");
         return;
       }
+      setUserId(userId);
 
       const { data: selectionData, error: selectionError } = await supabase
         .from("user_learning_path")
@@ -142,6 +145,26 @@ const LessonProgressPanel = ({ module }: Props) => {
     return null;
   }, [lessons, progressByLessonId]);
 
+  const redoLesson = async (lessonId: string) => {
+    if (!supabase) return;
+    if (!userId) {
+      navigate("/login");
+      return;
+    }
+
+    const { error } = await supabase.from("user_lesson_progress").delete().eq("user_id", userId).eq("lesson_id", lessonId);
+    if (error) {
+      toast({ title: "Não foi possível refazer a lição", description: error.message });
+      return;
+    }
+
+    setProgressByLessonId((prev) => {
+      const next = { ...prev };
+      delete next[lessonId];
+      return next;
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="rounded-3xl border-2 border-border bg-card p-6">
@@ -190,7 +213,13 @@ const LessonProgressPanel = ({ module }: Props) => {
           <Button variant="outline" onClick={() => navigate("/modulos")}>
             Trocar nível
           </Button>
-          <Button variant="hero" onClick={() => navigate("/lesson")} disabled={!nextLesson}>
+          <Button
+            variant="hero"
+            onClick={() => {
+              if (nextLesson) navigate(`/lesson?lessonId=${nextLesson.id}`);
+            }}
+            disabled={!nextLesson}
+          >
             {nextLesson ? `Continuar (Lição ${nextLesson.lesson_no})` : "Concluído"}
           </Button>
         </div>
@@ -229,10 +258,15 @@ const LessonProgressPanel = ({ module }: Props) => {
                 <Button
                   variant={status === "completed" ? "outline" : "default"}
                   size="sm"
-                  onClick={() => navigate("/lesson")}
+                  onClick={() => navigate(`/lesson?lessonId=${lesson.id}`)}
                 >
                   {status === "completed" ? "Rever" : "Abrir"}
                 </Button>
+                {status === "completed" ? (
+                  <Button variant="outline" size="sm" onClick={() => redoLesson(lesson.id)}>
+                    Refazer
+                  </Button>
+                ) : null}
               </div>
             </div>
           );

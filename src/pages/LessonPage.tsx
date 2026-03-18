@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Volume2, Mic, ArrowLeft, Star, Flame, Trophy } from "lucide-react";
 import Navbar from "@/components/landing/Navbar";
 import { speak } from "@/lib/speak";
@@ -148,6 +148,7 @@ const similarity = (a: string, b: string) => {
 
 const LessonPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [currentPhrase, setCurrentPhrase] = useState(0);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [points, setPoints] = useState(0);
@@ -158,11 +159,18 @@ const LessonPage = () => {
   const [module, setModule] = useState<ModuleKey | null>(null);
   const [level, setLevel] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [lessonId, setLessonId] = useState<string | null>(null);
+  const [lessonNo, setLessonNo] = useState<number | null>(null);
+  const [totalLessons, setTotalLessons] = useState<number | null>(null);
+  const [lessonIdsInLevel, setLessonIdsInLevel] = useState<string[]>([]);
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
+  const [isLevelFinished, setIsLevelFinished] = useState(false);
 
   const phrases = useMemo(() => getPhrasesFor(module, level), [module, level]);
   const phaseCount = phrases.length;
-  const isLevelCompleted = currentPhrase >= phaseCount;
-  const phrase = isLevelCompleted ? null : phrases[currentPhrase];
+  const isLessonCompleted = currentPhrase >= phaseCount;
+  const phrase = isLessonCompleted ? null : phrases[currentPhrase];
 
   useEffect(() => {
     let mounted = true;
@@ -177,19 +185,21 @@ const LessonPage = () => {
 
       const { data: sessionData } = await supabase.auth.getSession();
       if (!mounted) return;
-      const userId = sessionData.session?.user.id;
-      if (!userId) {
+      const sessionUserId = sessionData.session?.user.id;
+      if (!sessionUserId) {
         navigate("/login");
         return;
       }
+      setUserId(sessionUserId);
 
-      const { data: pathData } = await supabase.from("user_learning_path").select("module, level").eq("user_id", userId).maybeSingle();
+      const { data: pathData } = await supabase.from("user_learning_path").select("module, level").eq("user_id", sessionUserId).maybeSingle();
       if (!mounted) return;
 
       const selectedModule = (pathData?.module as ModuleKey | undefined) ?? null;
       const selectedLevel = (pathData?.level as number | undefined) ?? null;
       setModule(selectedModule);
       setLevel(selectedLevel);
+      setIsLevelFinished(false);
 
       if (!selectedModule || !selectedLevel) {
         setIsLoading(false);
@@ -198,28 +208,109 @@ const LessonPage = () => {
 
       const phaseCountForSelection = getPhrasesFor(selectedModule, selectedLevel).length;
 
-      const { data: progressData } = await supabase
-        .from("user_level_progress")
-        .select("current_phase, completed")
-        .eq("user_id", userId)
+      const { data: lessonsData, error: lessonsError } = await supabase
+        .from("lessons")
+        .select("id, lesson_no")
         .eq("module", selectedModule)
         .eq("level", selectedLevel)
-        .maybeSingle();
+        .order("lesson_no", { ascending: true });
 
       if (!mounted) return;
 
-      const currentPhase = Number(progressData?.current_phase ?? 0);
-      const completed = Boolean(progressData?.completed);
-      setCurrentPhrase(
-        completed ? phaseCountForSelection : Math.min(Math.max(currentPhase, 0), phaseCountForSelection),
-      );
+      if (lessonsError) {
+        toast({ title: "Erro ao carregar lições", description: lessonsError.message });
+        setIsLoading(false);
+        return;
+      }
+
+      const lessonRows = (lessonsData ?? []) as Array<{ id: string; lesson_no: number }>;
+      const allLessonIds = lessonRows.map((l) => l.id);
+      setLessonIdsInLevel(allLessonIds);
+      setTotalLessons(lessonRows.length);
+
+      const requestedLessonId = searchParams.get("lessonId");
+      const requested = requestedLessonId ? lessonRows.find((l) => l.id === requestedLessonId) : null;
+
+      const completedSet = new Set<string>();
+      const byId = new Map<string, { status: "not_started" | "in_progress" | "completed"; current_phase: number }>();
+
+      if (allLessonIds.length) {
+        const { data: progressData, error: progressError } = await supabase
+          .from("user_lesson_progress")
+          .select("lesson_id, status, current_phase")
+          .eq("user_id", sessionUserId)
+          .in("lesson_id", allLessonIds);
+
+        if (!mounted) return;
+
+        if (progressError) {
+          toast({ title: "Erro ao carregar progresso", description: progressError.message });
+          setIsLoading(false);
+          return;
+        }
+
+        for (const row of (progressData ?? []) as Array<{
+          lesson_id: string;
+          status: "not_started" | "in_progress" | "completed";
+          current_phase: number | null;
+        }>) {
+          const current_phase = Number(row.current_phase ?? 0);
+          byId.set(row.lesson_id, { status: row.status, current_phase });
+          if (row.status === "completed") completedSet.add(row.lesson_id);
+        }
+      }
+
+      let chosen = requested ?? null;
+      if (!chosen && allLessonIds.length) {
+        const next = lessonRows.find((l) => byId.get(l.id)?.status !== "completed");
+        chosen = next ?? null;
+      }
+
+      setCompletedLessonIds(completedSet);
+      if (chosen) {
+        setLessonId(chosen.id);
+        setLessonNo(chosen.lesson_no);
+        setIsLevelFinished(false);
+
+        const row = byId.get(chosen.id);
+        const currentStatus = row?.status ?? "not_started";
+        const savedPhase = row?.current_phase ?? 0;
+        setCurrentPhrase(Math.min(Math.max(savedPhase, 0), phaseCountForSelection));
+
+        if (currentStatus !== "completed") {
+          if (currentStatus === "not_started") {
+            await supabase.from("user_lesson_progress").upsert(
+              {
+                user_id: sessionUserId,
+                lesson_id: chosen.id,
+                status: "in_progress",
+                current_phase: 0,
+                started_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id,lesson_id" },
+            );
+          } else {
+            await supabase.from("user_lesson_progress").update({ updated_at: new Date().toISOString() }).eq("user_id", sessionUserId).eq("lesson_id", chosen.id);
+          }
+        } else {
+          setCurrentPhrase(phaseCountForSelection);
+        }
+      } else {
+        setLessonId(null);
+        setLessonNo(null);
+        setIsLevelFinished(true);
+        setCurrentPhrase(phaseCountForSelection);
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(false);
     })();
 
     return () => {
       mounted = false;
     };
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   const handleListen = async () => {
     if (!phrase) return;
@@ -236,23 +327,103 @@ const LessonPage = () => {
     }
   };
 
-  const persistPhaseProgress = async (nextPhase: number, completed: boolean) => {
-    if (!supabase || !module || !level) return;
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    if (!userId) return;
-
-    await supabase.from("user_level_progress").upsert(
+  const persistLessonPhaseProgress = async (nextPhase: number, completed: boolean) => {
+    if (!supabase || !userId || !lessonId) return;
+    await supabase.from("user_lesson_progress").upsert(
       {
         user_id: userId,
-        module,
-        level,
+        lesson_id: lessonId,
+        status: completed ? "completed" : "in_progress",
         current_phase: nextPhase,
-        completed,
         updated_at: new Date().toISOString(),
+        completed_at: completed ? new Date().toISOString() : null,
       },
-      { onConflict: "user_id,module,level" },
+      { onConflict: "user_id,lesson_id" },
     );
+  };
+
+  const completeCurrentLesson = async () => {
+    if (!supabase || !userId || !lessonId) return;
+    const { error } = await supabase
+      .from("user_lesson_progress")
+      .upsert(
+        {
+          user_id: userId,
+          lesson_id: lessonId,
+          status: "completed",
+          current_phase: phaseCount,
+          score: points,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,lesson_id" },
+      );
+
+    if (error) {
+      toast({ title: "Não foi possível salvar o progresso", description: error.message });
+      return;
+    }
+
+    setCompletedLessonIds((prev) => {
+      const next = new Set(prev);
+      next.add(lessonId);
+      return next;
+    });
+  };
+
+  const startNextLessonIfAny = async () => {
+    if (!supabase || !userId || !module || !level) return false;
+    if (!lessonIdsInLevel.length) return false;
+
+    const { data: lessonsData } = await supabase
+      .from("lessons")
+      .select("id, lesson_no")
+      .eq("module", module)
+      .eq("level", level)
+      .order("lesson_no", { ascending: true });
+
+    const rows = (lessonsData ?? []) as Array<{ id: string; lesson_no: number }>;
+    const lessonIds = rows.map((r) => r.id);
+    const { data: progressData } = await supabase
+      .from("user_lesson_progress")
+      .select("lesson_id, status, current_phase")
+      .eq("user_id", userId)
+      .in("lesson_id", lessonIds);
+
+    const statusById = new Map<string, { status: "not_started" | "in_progress" | "completed"; current_phase: number }>();
+    for (const row of (progressData ?? []) as Array<{
+      lesson_id: string;
+      status: "not_started" | "in_progress" | "completed";
+      current_phase: number | null;
+    }>) {
+      statusById.set(row.lesson_id, { status: row.status, current_phase: Number(row.current_phase ?? 0) });
+    }
+
+    const next = rows.find((l) => statusById.get(l.id)?.status !== "completed" && l.id !== lessonId);
+    if (!next) return false;
+
+    setIsLevelFinished(false);
+    setLessonId(next.id);
+    setLessonNo(next.lesson_no);
+    setPoints(0);
+    setFeedback(null);
+    const savedPhase = statusById.get(next.id)?.current_phase ?? 0;
+    setCurrentPhrase(Math.min(Math.max(savedPhase, 0), phaseCount));
+    if ((statusById.get(next.id)?.status ?? "not_started") === "not_started") {
+      await supabase.from("user_lesson_progress").upsert(
+        {
+          user_id: userId,
+          lesson_id: next.id,
+          status: "in_progress",
+          current_phase: 0,
+          started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,lesson_id" },
+      );
+    }
+
+    return true;
   };
 
   const handleRecord = () => {
@@ -271,7 +442,7 @@ const LessonPage = () => {
         if (result === "correct") {
           const nextPhase = Math.min(currentPhrase + 1, phaseCount);
           const completed = nextPhase >= phaseCount;
-          await persistPhaseProgress(nextPhase, completed);
+          await persistLessonPhaseProgress(nextPhase, completed);
           setTimeout(() => {
             handleNext(nextPhase);
           }, 700);
@@ -291,18 +462,76 @@ const LessonPage = () => {
     setFeedback(null);
     if (typeof nextPhase === "number") {
       setCurrentPhrase(nextPhase);
+      if (nextPhase >= phaseCount) {
+        void completeCurrentLesson().then(async () => {
+          const startedNext = await startNextLessonIfAny();
+          if (!startedNext) {
+            setIsLevelFinished(true);
+            setLessonId(null);
+            setLessonNo(null);
+            setCurrentPhrase(phaseCount);
+          }
+        });
+      }
       return;
     }
     const phase = Math.min(currentPhrase + 1, phaseCount);
-    void persistPhaseProgress(phase, phase >= phaseCount);
+    void persistLessonPhaseProgress(phase, phase >= phaseCount);
     setCurrentPhrase(phase);
+    if (phase >= phaseCount) {
+      void completeCurrentLesson().then(async () => {
+        const startedNext = await startNextLessonIfAny();
+        if (!startedNext) {
+          setIsLevelFinished(true);
+          setLessonId(null);
+          setLessonNo(null);
+          setCurrentPhrase(phaseCount);
+        }
+      });
+    }
   };
 
   const handleRestartLevel = async () => {
     setFeedback(null);
     setCurrentPhrase(0);
     setPoints(0);
-    await persistPhaseProgress(0, false);
+
+    if (supabase && userId && lessonIdsInLevel.length) {
+      const { error } = await supabase.from("user_lesson_progress").delete().eq("user_id", userId).in("lesson_id", lessonIdsInLevel);
+      if (error) {
+        toast({ title: "Não foi possível refazer o nível", description: error.message });
+      } else {
+        setCompletedLessonIds(new Set());
+        setIsLevelFinished(false);
+        setLessonId(null);
+        setLessonNo(null);
+        navigate("/lesson");
+      }
+    }
+  };
+
+  const handleRedoCurrentLesson = async () => {
+    if (!supabase || !userId || !lessonId) return;
+    const { error } = await supabase.from("user_lesson_progress").delete().eq("user_id", userId).eq("lesson_id", lessonId);
+    if (error) {
+      toast({ title: "Não foi possível refazer a lição", description: error.message });
+      return;
+    }
+    setCurrentPhrase(0);
+    setFeedback(null);
+    setPoints(0);
+    setIsLevelFinished(false);
+    await supabase.from("user_lesson_progress").upsert(
+      {
+        user_id: userId,
+        lesson_id: lessonId,
+        status: "in_progress",
+        current_phase: 0,
+        started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,lesson_id" },
+    );
   };
 
   const handleNextLevel = async () => {
@@ -325,22 +554,14 @@ const LessonPage = () => {
       return;
     }
 
-    await supabase.from("user_level_progress").upsert(
-      {
-        user_id: userId,
-        module,
-        level: nextLevel,
-        current_phase: 0,
-        completed: false,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,module,level" },
-    );
-
     setLevel(nextLevel);
     setCurrentPhrase(0);
     setFeedback(null);
     setPoints(0);
+    setIsLevelFinished(false);
+    setLessonId(null);
+    setLessonNo(null);
+    navigate("/lesson");
   };
 
   return (
@@ -374,12 +595,38 @@ const LessonPage = () => {
         {/* Lesson card */}
         <div className="mx-auto max-w-md">
           <div className="rounded-3xl border-2 border-border bg-card p-8 text-center shadow-lg">
+            {lessonNo && totalLessons ? (
+              <p className="mb-2 font-body text-sm text-muted-foreground">
+                Lição {lessonNo} de {totalLessons}
+              </p>
+            ) : null}
             {isLoading ? (
               <p className="font-body text-muted-foreground">Carregando...</p>
-            ) : isLevelCompleted ? (
+            ) : isLevelFinished ? (
               <>
                 <h2 className="mb-2 font-display text-3xl font-bold text-success">Nível concluído ✅</h2>
                 <p className="mb-8 font-body text-muted-foreground">Você completou todas as fases deste nível.</p>
+              </>
+            ) : isLessonCompleted ? (
+              <>
+                <h2 className="mb-2 font-display text-3xl font-bold text-success">Lição concluída ✅</h2>
+                <p className="mb-8 font-body text-muted-foreground">Você completou todas as fases desta lição.</p>
+                <div className="flex flex-col gap-3">
+                  <Button
+                    variant="hero"
+                    size="lg"
+                    className="w-full"
+                    onClick={async () => {
+                      const startedNext = await startNextLessonIfAny();
+                      if (!startedNext) setIsLevelFinished(true);
+                    }}
+                  >
+                    Próxima lição →
+                  </Button>
+                  <Button variant="outline" size="lg" className="w-full" onClick={handleRedoCurrentLesson}>
+                    Refazer lição
+                  </Button>
+                </div>
               </>
             ) : phrase ? (
               <>
@@ -401,7 +648,7 @@ const LessonPage = () => {
                 size="xl"
                 className="w-full"
                 onClick={handleRecord}
-                disabled={isRecording || isSpeaking || isLoading || isLevelCompleted}
+                disabled={isRecording || isSpeaking || isLoading || isLevelFinished || isLessonCompleted}
               >
                 <Mic className="h-6 w-6" />
                 {isRecording ? "Gravando..." : "Falar 🎤"}
@@ -447,7 +694,7 @@ const LessonPage = () => {
             ))}
           </div>
 
-          {isLevelCompleted ? (
+          {isLevelFinished ? (
             <div className="mt-6 flex w-full flex-col gap-3">
               <Button variant="hero" size="lg" className="w-full" onClick={handleNextLevel} disabled={!level}>
                 Próximo nível →
