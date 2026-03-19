@@ -22,6 +22,7 @@ import AdminClientesPage from "./pages/admin/AdminClientesPage";
 import AdminPlanosPage from "./pages/admin/AdminPlanosPage";
 import AdminChamadosPage from "./pages/admin/AdminChamadosPage";
 import AdminConteudosPage from "./pages/admin/AdminConteudosPage";
+import AdminProgressoPage from "./pages/admin/AdminProgressoPage";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const App = () => (
           <Route path="/admin/planos" element={<AdminPlanosPage />} />
           <Route path="/admin/chamados" element={<AdminChamadosPage />} />
           <Route path="/admin/conteudos" element={<AdminConteudosPage />} />
+          <Route path="/admin/progresso" element={<AdminProgressoPage />} />
           <Route path="/eca-lgpd" element={<EcaLgpdPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
