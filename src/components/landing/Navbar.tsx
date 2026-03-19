@@ -91,9 +91,6 @@ const Navbar = () => {
               </button>
               {dashboard ? (
                 <>
-                  <button onClick={() => navigate("/lesson")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-                    Aprender
-                  </button>
                   <button onClick={() => navigate(dashboard.path)} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                     {dashboard.label}
                   </button>
@@ -102,9 +99,6 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              <button onClick={() => navigate("/lesson")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-                Aprender
-              </button>
               <button onClick={() => navigate("/parent-dashboard")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                 Pais
               </button>
@@ -156,9 +150,6 @@ const Navbar = () => {
                 </button>
                 {dashboard ? (
                   <>
-                    <button onClick={() => { navigate("/lesson"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
-                      Aprender
-                    </button>
                     <button onClick={() => { navigate(dashboard.path); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
                       {dashboard.label}
                     </button>
@@ -168,7 +159,6 @@ const Navbar = () => {
             ) : (
               <>
                 <button onClick={() => { navigate("/"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Início</button>
-                <button onClick={() => { navigate("/lesson"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Aprender</button>
                 <button onClick={() => { navigate("/parent-dashboard"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Pais</button>
                 <button onClick={() => { navigate("/referrals"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Indicar</button>
               </>
