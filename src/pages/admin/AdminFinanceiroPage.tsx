@@ -1,9 +1,11 @@
 import AdminShell from "@/components/admin/AdminShell";
 import RequireSuperAdmin from "@/components/admin/RequireSuperAdmin";
 import { Button } from "@/components/ui/button";
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 type InvoiceRow = {
   id: string;
@@ -21,6 +23,13 @@ type SubscriptionRow = {
   plan_id: string | null;
   status: "active" | "trialing" | "past_due" | "canceled";
   updated_at: string;
+};
+
+type FinanceMetricRow = {
+  month: number;
+  revenue_cents: number;
+  paying_users: number;
+  paid_invoices: number;
 };
 
 const formatMoney = (amountCents: number, currency: string) => {
@@ -44,6 +53,10 @@ const AdminFinanceiroPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
+  const [metricsYear, setMetricsYear] = useState<number>(new Date().getFullYear());
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<FinanceMetricRow[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -94,6 +107,27 @@ const AdminFinanceiroPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!supabase) return;
+      setMetricsLoading(true);
+      setMetricsError(null);
+      const { data, error } = await supabase.rpc("admin_finance_metrics", { p_year: metricsYear });
+      if (!mounted) return;
+      if (error) {
+        setMetricsError(error.message);
+        setMetrics([]);
+      } else {
+        setMetrics(((data ?? []) as FinanceMetricRow[]) ?? []);
+      }
+      setMetricsLoading(false);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [metricsYear]);
+
   const totals = useMemo(() => {
     const paid = invoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.amount_cents, 0);
     const pending = invoices.filter((i) => i.status === "pending").reduce((sum, i) => sum + i.amount_cents, 0);
@@ -103,6 +137,23 @@ const AdminFinanceiroPage = () => {
   }, [invoices]);
 
   const activeSubs = useMemo(() => subscriptions.filter((s) => s.status === "active").length, [subscriptions]);
+
+  const chartData = useMemo(() => {
+    const byMonth = new Map<number, FinanceMetricRow>();
+    for (const row of metrics) byMonth.set(row.month, row);
+    const rows = Array.from({ length: 12 }).map((_, idx) => {
+      const month = idx + 1;
+      const row = byMonth.get(month);
+      return {
+        month,
+        label: new Intl.DateTimeFormat("pt-BR", { month: "short" }).format(new Date(metricsYear, idx, 1)),
+        revenueCents: row?.revenue_cents ?? 0,
+        payingUsers: row?.paying_users ?? 0,
+        paidInvoices: row?.paid_invoices ?? 0,
+      };
+    });
+    return rows;
+  }, [metrics, metricsYear]);
 
   return (
     <AdminShell title="Financeiro">
@@ -199,6 +250,119 @@ const AdminFinanceiroPage = () => {
                   Nenhuma fatura encontrada.
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border-2 border-border bg-card p-6">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="font-display text-xl font-bold text-foreground">Gráfico financeiro</h2>
+                <p className="mt-1 font-body text-sm text-muted-foreground">Assinaturas (usuários pagantes) e receita por mês.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setMetricsYear((y) => y - 1)} disabled={metricsLoading}>
+                  ◀
+                </Button>
+                <div className="rounded-2xl border-2 border-border bg-background px-4 py-2 font-body text-sm text-foreground">
+                  {metricsYear}
+                </div>
+                <Button variant="outline" onClick={() => setMetricsYear((y) => y + 1)} disabled={metricsLoading}>
+                  ▶
+                </Button>
+              </div>
+            </div>
+
+            {metricsError ? (
+              <div className="mt-4 rounded-3xl border-2 border-destructive/40 bg-destructive/5 p-4 font-body text-sm text-destructive/90">
+                {metricsError}
+              </div>
+            ) : null}
+
+            <div className="mt-4 overflow-hidden rounded-3xl border-2 border-border bg-background p-4">
+              <ChartContainer
+                config={{
+                  payingUsers: { label: "Assinaturas", color: "hsl(var(--primary))" },
+                  revenue: { label: "Receita", color: "hsl(var(--referral))" },
+                }}
+                className="h-[260px] w-full"
+              >
+                <AreaChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-revenue)" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="var(--color-revenue)" stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-payingUsers)" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="var(--color-payingUsers)" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="label" tickMargin={8} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" axisLine={false} tickLine={false} tickMargin={8} width={48} allowDecimals={false} />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    axisLine={false}
+                    tickLine={false}
+                    tickMargin={8}
+                    width={72}
+                    tickFormatter={(v) => formatMoney(Number(v), "BRL")}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(label) => label}
+                        formatter={(value, name) => {
+                          if (name === "payingUsers") {
+                            return (
+                              <div className="flex w-full justify-between gap-4">
+                                <span className="text-muted-foreground">Assinaturas</span>
+                                <span className="font-mono font-medium tabular-nums text-foreground">{Number(value ?? 0)}</span>
+                              </div>
+                            );
+                          }
+                          if (name === "revenue") {
+                            return (
+                              <div className="flex w-full justify-between gap-4">
+                                <span className="text-muted-foreground">Receita</span>
+                                <span className="font-mono font-medium tabular-nums text-foreground">
+                                  {formatMoney(Number(value ?? 0), "BRL")}
+                                </span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex w-full justify-between gap-4">
+                              <span className="text-muted-foreground">{String(name)}</span>
+                              <span className="font-mono font-medium tabular-nums text-foreground">{String(value ?? "")}</span>
+                            </div>
+                          );
+                        }}
+                      />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Area
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="revenueCents"
+                    name="revenue"
+                    stroke="var(--color-revenue)"
+                    fill="url(#fillRevenue)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="payingUsers"
+                    name="payingUsers"
+                    stroke="var(--color-payingUsers)"
+                    fill="url(#fillUsers)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ChartContainer>
             </div>
           </div>
         </div>

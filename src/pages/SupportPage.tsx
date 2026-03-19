@@ -1,6 +1,7 @@
 import Footer from "@/components/landing/Footer";
 import Navbar from "@/components/landing/Navbar";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "@/hooks/use-toast";
 import { useEffect, useMemo, useState } from "react";
@@ -16,6 +17,15 @@ type TicketRow = {
   message?: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type ReplyRow = {
+  id: string;
+  ticket_id: string;
+  sender_role: "user" | "admin";
+  sender_user_id: string | null;
+  message: string;
+  created_at: string;
 };
 
 const formatDateTime = (value: string) => {
@@ -35,6 +45,13 @@ const SupportPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [repliesByTicketId, setRepliesByTicketId] = useState<Record<string, ReplyRow[]>>({});
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailTicket, setDetailTicket] = useState<TicketRow | null>(null);
+  const [detailMessages, setDetailMessages] = useState<ReplyRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -70,7 +87,33 @@ const SupportPage = () => {
       return;
     }
 
-    setTickets(((data ?? []) as TicketRow[]) ?? []);
+    const ticketRows = ((data ?? []) as TicketRow[]) ?? [];
+    setTickets(ticketRows);
+
+    const ticketIds = ticketRows.map((t) => t.id);
+    if (ticketIds.length) {
+      const { data: repliesData, error: repliesError } = await supabase
+        .from("support_ticket_messages")
+        .select("id, ticket_id, sender_role, sender_user_id, message, created_at")
+        .in("ticket_id", ticketIds)
+        .order("created_at", { ascending: true })
+        .limit(500);
+
+      if (repliesError) {
+        setErrorMessage(repliesError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      const map: Record<string, ReplyRow[]> = {};
+      for (const r of ((repliesData ?? []) as ReplyRow[]) ?? []) {
+        if (!map[r.ticket_id]) map[r.ticket_id] = [];
+        map[r.ticket_id].push(r);
+      }
+      setRepliesByTicketId(map);
+    } else {
+      setRepliesByTicketId({});
+    }
     setIsLoading(false);
   };
 
@@ -127,6 +170,70 @@ const SupportPage = () => {
       await load();
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const openDetails = async (t: TicketRow) => {
+    if (!supabase) return;
+    setDetailTicket(t);
+    setDetailMessages([]);
+    setMessageText("");
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setErrorMessage(null);
+    try {
+      const { data, error } = await supabase
+        .from("support_ticket_messages")
+        .select("id, ticket_id, sender_role, sender_user_id, message, created_at")
+        .eq("ticket_id", t.id)
+        .order("created_at", { ascending: true })
+        .limit(500);
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      setDetailMessages(((data ?? []) as ReplyRow[]) ?? []);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!supabase || !detailTicket) return;
+    if (!messageText.trim()) {
+      toast({ title: "Informe a mensagem" });
+      return;
+    }
+
+    setIsSending(true);
+    setErrorMessage(null);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) {
+        navigate("/login");
+        return;
+      }
+
+      const { error } = await supabase.from("support_ticket_messages").insert({
+        ticket_id: detailTicket.id,
+        sender_role: "user",
+        sender_user_id: userId,
+        message: messageText.trim(),
+      });
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      setMessageText("");
+      await openDetails(detailTicket);
+      await load();
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -197,6 +304,22 @@ const SupportPage = () => {
                           Status: {formatStatus(t.status)} · Criado: {formatDateTime(t.created_at)}
                         </div>
                         {t.message ? <div className="mt-2 font-body text-sm text-muted-foreground">{t.message}</div> : null}
+                        {repliesByTicketId[t.id]?.length ? (
+                          <div className="mt-4 grid gap-2">
+                            <div className="font-body text-xs font-semibold text-muted-foreground">Respostas do suporte</div>
+                            {repliesByTicketId[t.id].filter((r) => r.sender_role === "admin").map((r) => (
+                              <div key={r.id} className="rounded-2xl border-2 border-border bg-card px-4 py-3">
+                                <div className="font-body text-xs text-muted-foreground">{formatDateTime(r.created_at)}</div>
+                                <div className="mt-1 font-body text-sm text-foreground">{r.message}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="mt-4">
+                          <Button variant="outline" size="sm" onClick={() => openDetails(t)}>
+                            Detalhes
+                          </Button>
+                        </div>
                       </div>
                       <div className="font-body text-xs text-muted-foreground">{t.id.slice(0, 8)}…</div>
                     </div>
@@ -211,10 +334,57 @@ const SupportPage = () => {
           </div>
         </div>
       </main>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Detalhes do chamado</DialogTitle>
+            <DialogDescription>{detailTicket ? detailTicket.subject : "—"}</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid max-h-[60vh] gap-4 overflow-y-auto pr-1">
+            {detailLoading ? (
+              <div className="rounded-2xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">Carregando conversa...</div>
+            ) : detailMessages.length ? (
+              detailMessages.map((m) => (
+                <div key={m.id} className="rounded-2xl border-2 border-border bg-background p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-body text-xs text-muted-foreground">{m.sender_role === "admin" ? "Suporte" : "Você"}</div>
+                    <div className="font-body text-xs text-muted-foreground">{formatDateTime(m.created_at)}</div>
+                  </div>
+                  <div className="mt-2 font-body text-sm text-foreground">{m.message}</div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">
+                Nenhuma mensagem ainda.
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1 block font-body text-sm font-semibold text-foreground">Enviar mensagem</label>
+              <textarea
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                className="min-h-28 w-full resize-none rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                placeholder="Escreva sua mensagem..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)} disabled={isSending}>
+              Fechar
+            </Button>
+            <Button onClick={sendMessage} disabled={isSending || !detailTicket}>
+              Enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Footer />
     </div>
   );
 };
 
 export default SupportPage;
-

@@ -1,6 +1,7 @@
 import AdminShell from "@/components/admin/AdminShell";
 import RequireSuperAdmin from "@/components/admin/RequireSuperAdmin";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
@@ -14,10 +15,31 @@ type Ticket = {
   updated_at: string;
 };
 
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+};
+
+type TicketMessageRow = {
+  id: string;
+  ticket_id: string;
+  sender_role: "user" | "admin";
+  sender_user_id: string | null;
+  message: string;
+  created_at: string;
+};
+
 const formatDateTime = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+};
+
+const formatTicketStatus = (status: Ticket["status"]) => {
+  if (status === "open") return "Aberto";
+  if (status === "in_progress") return "Em andamento";
+  return "Fechado";
 };
 
 const AdminChamadosPage = () => {
@@ -25,6 +47,13 @@ const AdminChamadosPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [profileByUserId, setProfileByUserId] = useState<Record<string, ProfileRow>>({});
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailTicket, setDetailTicket] = useState<Ticket | null>(null);
+  const [detailMessages, setDetailMessages] = useState<TicketMessageRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const load = async () => {
     if (!supabase) {
@@ -46,7 +75,30 @@ const AdminChamadosPage = () => {
       return;
     }
 
-    setTickets(((data ?? []) as Ticket[]) ?? []);
+    const rows = ((data ?? []) as Ticket[]) ?? [];
+    setTickets(rows);
+
+    const userIds = Array.from(new Set(rows.map((t) => t.user_id).filter(Boolean)));
+    if (userIds.length) {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", userIds);
+
+      if (profilesError) {
+        setErrorMessage(profilesError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      const map: Record<string, ProfileRow> = {};
+      for (const p of ((profilesData ?? []) as ProfileRow[]) ?? []) {
+        map[p.user_id] = p;
+      }
+      setProfileByUserId(map);
+    } else {
+      setProfileByUserId({});
+    }
     setIsLoading(false);
   };
 
@@ -64,6 +116,63 @@ const AdminChamadosPage = () => {
       return;
     }
     await load();
+  };
+
+  const openDetails = async (t: Ticket) => {
+    if (!supabase) return;
+    setDetailTicket(t);
+    setDetailMessages([]);
+    setMessageText("");
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setErrorMessage(null);
+    try {
+      const { data, error } = await supabase
+        .from("support_ticket_messages")
+        .select("id, ticket_id, sender_role, sender_user_id, message, created_at")
+        .eq("ticket_id", t.id)
+        .order("created_at", { ascending: true })
+        .limit(500);
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      setDetailMessages(((data ?? []) as TicketMessageRow[]) ?? []);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!supabase || !detailTicket) return;
+    if (!messageText.trim()) {
+      setErrorMessage("Informe a mensagem.");
+      return;
+    }
+    setIsSending(true);
+    setErrorMessage(null);
+    try {
+      const { error } = await supabase.from("support_ticket_messages").insert({
+        ticket_id: detailTicket.id,
+        sender_role: "admin",
+        sender_user_id: null,
+        message: messageText.trim(),
+      });
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      await supabase.from("support_tickets").update({ status: "in_progress", updated_at: new Date().toISOString() }).eq("id", detailTicket.id);
+      setMessageText("");
+      await openDetails(detailTicket);
+      await load();
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -104,12 +213,17 @@ const AdminChamadosPage = () => {
                 {tickets.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-body text-xs text-muted-foreground">{t.id.slice(0, 8)}…</TableCell>
-                    <TableCell className="font-body text-xs text-muted-foreground">{t.user_id.slice(0, 8)}…</TableCell>
+                    <TableCell className="font-body">
+                      {profileByUserId[t.user_id]?.full_name ?? profileByUserId[t.user_id]?.email ?? `${t.user_id.slice(0, 8)}…`}
+                    </TableCell>
                     <TableCell className="font-body">{t.subject}</TableCell>
-                    <TableCell className="font-body">{t.status}</TableCell>
+                    <TableCell className="font-body">{formatTicketStatus(t.status)}</TableCell>
                     <TableCell className="font-body">{formatDateTime(t.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => openDetails(t)}>
+                          Detalhes
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -144,12 +258,17 @@ const AdminChamadosPage = () => {
                     <div className="min-w-0">
                       <div className="font-body text-xs text-muted-foreground">{t.id.slice(0, 8)}…</div>
                       <div className="mt-1 truncate font-display text-lg font-bold text-foreground">{t.subject}</div>
-                      <div className="mt-1 font-body text-sm text-muted-foreground">Cliente: {t.user_id.slice(0, 8)}…</div>
+                      <div className="mt-1 font-body text-sm text-muted-foreground">
+                        Cliente: {profileByUserId[t.user_id]?.full_name ?? profileByUserId[t.user_id]?.email ?? `${t.user_id.slice(0, 8)}…`}
+                      </div>
                       <div className="mt-1 font-body text-sm text-muted-foreground">Criado: {formatDateTime(t.created_at)}</div>
-                      <div className="mt-1 font-body text-sm text-muted-foreground">Status: {t.status}</div>
+                      <div className="mt-1 font-body text-sm text-muted-foreground">Status: {formatTicketStatus(t.status)}</div>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => openDetails(t)}>
+                      Detalhes
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -172,6 +291,68 @@ const AdminChamadosPage = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Detalhes do chamado</DialogTitle>
+            <DialogDescription>
+              {detailTicket
+                ? `${profileByUserId[detailTicket.user_id]?.full_name ?? profileByUserId[detailTicket.user_id]?.email ?? detailTicket.user_id.slice(0, 8)} · ${
+                    detailTicket.subject
+                  }`
+                : "—"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid max-h-[60vh] gap-4 overflow-y-auto pr-1">
+            {detailTicket ? (
+              <div className="rounded-2xl border-2 border-border bg-background p-4">
+                <div className="font-body text-xs text-muted-foreground">
+                  Status: {formatTicketStatus(detailTicket.status)} · Criado: {formatDateTime(detailTicket.created_at)}
+                </div>
+              </div>
+            ) : null}
+
+            {detailLoading ? (
+              <div className="rounded-2xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">Carregando conversa...</div>
+            ) : detailMessages.length ? (
+              detailMessages.map((m) => (
+                <div key={m.id} className="rounded-2xl border-2 border-border bg-background p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-body text-xs text-muted-foreground">{m.sender_role === "admin" ? "Suporte" : "Usuário"}</div>
+                    <div className="font-body text-xs text-muted-foreground">{formatDateTime(m.created_at)}</div>
+                  </div>
+                  <div className="mt-2 font-body text-sm text-foreground">{m.message}</div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">
+                Nenhuma mensagem ainda.
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1 block font-body text-sm font-semibold text-foreground">Mensagem</label>
+              <textarea
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                className="min-h-32 w-full resize-none rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                placeholder="Escreva a resposta para o usuário..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)} disabled={isSending}>
+              Cancelar
+            </Button>
+            <Button onClick={sendMessage} disabled={isSending || !detailTicket}>
+              Enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminShell>
   );
 };
