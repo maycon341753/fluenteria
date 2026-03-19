@@ -79,9 +79,11 @@ const ModuleSelectPage = () => {
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [planId, setPlanId] = useState<string | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
   const [planStatus, setPlanStatus] = useState<SubscriptionStatus | null>(null);
   const [planInfoError, setPlanInfoError] = useState<string | null>(null);
+  const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -103,6 +105,7 @@ const ModuleSelectPage = () => {
       }
 
       const userId = data.session.user.id;
+      setUserCreatedAt((data.session.user.created_at as string | undefined) ?? null);
 
       const { data: subData, error: subError } = await supabase
         .from("user_subscriptions")
@@ -116,16 +119,26 @@ const ModuleSelectPage = () => {
         setPlanInfoError(subError.message);
       } else {
         const status = subData?.status as SubscriptionStatus | undefined;
-        const planId = (subData?.plan_id as string | null | undefined) ?? null;
+        const userPlanId = (subData?.plan_id as string | null | undefined) ?? null;
+        setPlanId(userPlanId);
 
-        if (status && (status === "active" || status === "trialing") && planId) {
-          const { data: planData, error: planError } = await supabase.from("plans").select("name").eq("id", planId).maybeSingle();
+        if (status && (status === "active" || status === "trialing") && userPlanId) {
+          const { data: planData, error: planError } = await supabase
+            .from("plans")
+            .select("name, price_cents")
+            .eq("id", userPlanId)
+            .maybeSingle();
           if (!mounted) return;
           if (planError) {
             setPlanInfoError(planError.message);
           } else {
-            setPlanName((planData?.name as string | undefined) ?? "Premium");
+            const fetchedName = (planData?.name as string | undefined) ?? "Premium";
+            const priceCents = (planData?.price_cents as number | undefined) ?? null;
+            setPlanName(fetchedName);
             setPlanStatus(status);
+            if (fetchedName.toLowerCase() === "gratuito" || priceCents === 0) {
+              setPlanStatus(null);
+            }
           }
         } else {
           setPlanName("Gratuito");
@@ -153,18 +166,54 @@ const ModuleSelectPage = () => {
     };
   }, [navigate]);
 
+  const isFreePlan = useMemo(() => {
+    if (!planName) return false;
+    if (planName.toLowerCase() === "gratuito") return true;
+    if (!planId) return true;
+    return false;
+  }, [planId, planName]);
+
+  const freeDaysLeft = useMemo(() => {
+    if (!isFreePlan) return null;
+    if (!userCreatedAt) return null;
+    const created = new Date(userCreatedAt);
+    if (Number.isNaN(created.getTime())) return null;
+    const days = Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24));
+    return 10 - days;
+  }, [isFreePlan, userCreatedAt]);
+
+  const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft < 0 : false), [freeDaysLeft]);
+
   const currentModule = useMemo(() => modules.find((m) => m.key === selectedModule) ?? modules[0], [modules, selectedModule]);
+  const availableLevels = useMemo(() => {
+    if (!isFreePlan) return currentModule.levels;
+    if (freeExpired) return [];
+    return currentModule.levels.filter((l) => l.value === 1);
+  }, [currentModule.levels, freeExpired, isFreePlan]);
 
   useEffect(() => {
-    if (!currentModule.levels.some((l) => l.value === selectedLevel)) {
-      setSelectedLevel(currentModule.levels[0]?.value ?? 1);
+    if (!availableLevels.some((l) => l.value === selectedLevel)) {
+      setSelectedLevel(availableLevels[0]?.value ?? 1);
     }
-  }, [currentModule, selectedLevel]);
+  }, [availableLevels, selectedLevel]);
 
   const handleContinue = async () => {
     if (!supabase) {
       setErrorMessage("Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.");
       return;
+    }
+
+    if (isFreePlan) {
+      if (freeExpired) {
+        setErrorMessage("Seu período gratuito expirou. Assine um plano para continuar.");
+        navigate("/pricing");
+        return;
+      }
+      if (selectedLevel !== 1) {
+        setErrorMessage("No plano gratuito, apenas o nível 1 fica disponível durante 10 dias.");
+        setSelectedLevel(1);
+        return;
+      }
     }
 
     const { data: sessionData } = await supabase.auth.getSession();
@@ -214,13 +263,18 @@ const ModuleSelectPage = () => {
               <div className="font-body text-xs text-muted-foreground">Plano</div>
               <div className="mt-1 flex items-center gap-2">
                 <span className="font-display text-sm font-bold text-foreground">{planName ?? "—"}</span>
-                {planStatus ? (
+                {!isFreePlan && planStatus ? (
                   <span className="rounded-full bg-success/20 px-2 py-0.5 font-body text-xs font-semibold text-success">
                     {formatSubscriptionStatus(planStatus)}
                   </span>
                 ) : null}
               </div>
               {planInfoError ? <div className="mt-1 font-body text-xs text-muted-foreground">Plano indisponível</div> : null}
+              {isFreePlan && freeDaysLeft !== null ? (
+                <div className="mt-1 font-body text-xs text-muted-foreground">
+                  {freeDaysLeft >= 0 ? `Acesso do plano gratuito: ${freeDaysLeft} dias` : "Acesso do plano gratuito expirado"}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -270,14 +324,15 @@ const ModuleSelectPage = () => {
                     value={selectedLevel}
                     onChange={(e) => setSelectedLevel(Number(e.target.value))}
                     className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none sm:w-72"
+                    disabled={!availableLevels.length}
                   >
-                    {currentModule.levels.map((l) => (
+                    {availableLevels.map((l) => (
                       <option key={l.value} value={l.value}>
                         {l.label}
                       </option>
                     ))}
                   </select>
-                  <Button variant="hero" size="lg" onClick={handleContinue} disabled={isSubmitting}>
+                  <Button variant="hero" size="lg" onClick={handleContinue} disabled={isSubmitting || !availableLevels.length}>
                     Continuar
                   </Button>
                 </div>
