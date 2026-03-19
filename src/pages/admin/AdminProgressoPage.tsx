@@ -10,8 +10,8 @@ type ModuleKey = "crianca" | "adolescente" | "adulto";
 
 type ProgressUserRow = {
   user_id: string;
-  module: ModuleKey;
-  level: number;
+  module: ModuleKey | null;
+  level: number | null;
   full_name: string | null;
   email: string | null;
   created_at: string;
@@ -29,6 +29,12 @@ type ProgressRow = {
   status: "not_started" | "in_progress" | "completed";
   score: number | null;
   updated_at: string | null;
+};
+
+const formatProgressStatus = (status: ProgressRow["status"] | "not_started") => {
+  if (status === "completed") return "Concluída";
+  if (status === "in_progress") return "Em andamento";
+  return "Não iniciada";
 };
 
 const formatModuleLabel = (m: ModuleKey) => {
@@ -163,12 +169,14 @@ const AdminProgressoPage = () => {
     const lessonIds = lessonRows.map((l) => l.id);
 
     const query = search.trim();
-    const { data: usersData, error: usersError } = await supabase.rpc("admin_list_users_for_progress", {
-      p_module: module,
-      p_level: level,
-      p_search: query ? query : null,
-      p_limit: 500,
-    });
+    const { data: usersData, error: usersError } = query
+      ? await supabase.rpc("admin_search_users", { p_search: query, p_limit: 500 })
+      : await supabase.rpc("admin_list_users_for_progress", {
+          p_module: module,
+          p_level: level,
+          p_search: null,
+          p_limit: 500,
+        });
 
     if (usersError) {
       setErrorMessage(usersError.message);
@@ -391,7 +399,7 @@ const AdminProgressoPage = () => {
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl overflow-hidden">
           <DialogHeader>
             <DialogTitle>Detalhes do progresso</DialogTitle>
             <DialogDescription>
@@ -399,7 +407,7 @@ const AdminProgressoPage = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3">
+          <div className="grid max-h-[65vh] gap-3 overflow-y-auto pr-1">
             {selectedProgress.map(({ lesson, progress }) => (
               <div key={lesson.id} className="rounded-2xl border-2 border-border bg-background p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -408,7 +416,7 @@ const AdminProgressoPage = () => {
                       Lição {lesson.lesson_no} · {lesson.title}
                     </div>
                     <div className="mt-1 font-body text-sm text-muted-foreground">
-                      Status: {progress?.status ?? "not_started"} · Pontos: {Number(progress?.score ?? 0)}
+                      Status: {formatProgressStatus(progress?.status ?? "not_started")} · Pontos: {Number(progress?.score ?? 0)}
                     </div>
                   </div>
                   <div className="font-body text-xs text-muted-foreground">{formatDateTime(progress?.updated_at ?? null)}</div>

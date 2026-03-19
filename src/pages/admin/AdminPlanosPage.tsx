@@ -1,5 +1,7 @@
 import AdminShell from "@/components/admin/AdminShell";
 import RequireSuperAdmin from "@/components/admin/RequireSuperAdmin";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
@@ -28,6 +30,15 @@ const AdminPlanosPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPriceCents, setEditPriceCents] = useState<number>(0);
+  const [editCurrency, setEditCurrency] = useState("BRL");
+  const [editInterval, setEditInterval] = useState<Plan["interval"]>("month");
+  const [editMaxLevel, setEditMaxLevel] = useState<number | "all">("all");
+  const [editMaxUsers, setEditMaxUsers] = useState<number | "none">("none");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -61,6 +72,68 @@ const AdminPlanosPage = () => {
     };
   }, []);
 
+  const openEdit = (plan: Plan) => {
+    setSelectedPlanId(plan.id);
+    setEditName(plan.name ?? "");
+    setEditPriceCents(plan.price_cents ?? 0);
+    setEditCurrency(plan.currency ?? "BRL");
+    setEditInterval(plan.interval ?? "month");
+    setEditMaxLevel(plan.max_level ?? "all");
+    setEditMaxUsers(plan.max_users ?? "none");
+    setEditOpen(true);
+  };
+
+  const savePlan = async () => {
+    if (!supabase || !selectedPlanId) return;
+    if (!editName.trim()) {
+      setErrorMessage("Informe o nome do plano.");
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+    try {
+      const maxLevel = editMaxLevel === "all" ? null : Number(editMaxLevel);
+      const maxUsers = editMaxUsers === "none" ? null : Number(editMaxUsers);
+
+      const { error } = await supabase
+        .from("plans")
+        .update({
+          name: editName.trim(),
+          price_cents: Number(editPriceCents),
+          currency: editCurrency.trim().toUpperCase(),
+          interval: editInterval,
+          max_level: maxLevel,
+          max_users: maxUsers,
+        })
+        .eq("id", selectedPlanId);
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === selectedPlanId
+            ? {
+                ...p,
+                name: editName.trim(),
+                price_cents: Number(editPriceCents),
+                currency: editCurrency.trim().toUpperCase(),
+                interval: editInterval,
+                max_level: maxLevel,
+                max_users: maxUsers,
+              }
+            : p,
+        ),
+      );
+      setEditOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <AdminShell title="Planos">
       {isLoading ? (
@@ -82,6 +155,7 @@ const AdminPlanosPage = () => {
                   <TableHead>Intervalo</TableHead>
                   <TableHead>Níveis</TableHead>
                   <TableHead>Usuários</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -92,11 +166,16 @@ const AdminPlanosPage = () => {
                     <TableCell className="font-body">{p.interval === "year" ? "ano" : "mês"}</TableCell>
                     <TableCell className="font-body">{p.max_level ?? "Todos"}</TableCell>
                     <TableCell className="font-body">{p.max_users ?? "—"}</TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
+                        Editar
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {!plans.length ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="font-body text-muted-foreground">
+                    <TableCell colSpan={6} className="font-body text-muted-foreground">
                       Nenhum plano encontrado.
                     </TableCell>
                   </TableRow>
@@ -123,6 +202,11 @@ const AdminPlanosPage = () => {
                       <div className="font-body text-sm text-foreground">{p.max_users ?? "—"}</div>
                     </div>
                   </div>
+                  <div className="mt-4 flex items-center justify-end">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
+                      Editar
+                    </Button>
+                  </div>
                 </div>
               ))
             ) : (
@@ -133,6 +217,100 @@ const AdminPlanosPage = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar plano</DialogTitle>
+            <DialogDescription>Atualize informações do plano.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div>
+              <label className="mb-1 block font-body text-sm font-semibold text-foreground">Nome</label>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block font-body text-sm font-semibold text-foreground">Preço (centavos)</label>
+                <input
+                  type="number"
+                  value={editPriceCents}
+                  onChange={(e) => setEditPriceCents(Number(e.target.value))}
+                  className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block font-body text-sm font-semibold text-foreground">Moeda</label>
+                <input
+                  value={editCurrency}
+                  onChange={(e) => setEditCurrency(e.target.value)}
+                  className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                  placeholder="BRL"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block font-body text-sm font-semibold text-foreground">Intervalo</label>
+                <select
+                  value={editInterval}
+                  onChange={(e) => setEditInterval(e.target.value as Plan["interval"])}
+                  className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                >
+                  <option value="month">mês</option>
+                  <option value="year">ano</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block font-body text-sm font-semibold text-foreground">Nível máximo</label>
+                <select
+                  value={editMaxLevel}
+                  onChange={(e) => setEditMaxLevel(e.target.value === "all" ? "all" : Number(e.target.value))}
+                  className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                >
+                  <option value="all">Todos</option>
+                  {[1, 2, 3].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block font-body text-sm font-semibold text-foreground">Usuários</label>
+                <select
+                  value={editMaxUsers}
+                  onChange={(e) => setEditMaxUsers(e.target.value === "none" ? "none" : Number(e.target.value))}
+                  className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                >
+                  <option value="none">—</option>
+                  {[1, 5, 10, 20, 50, 100].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={isSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={savePlan} disabled={isSaving || !selectedPlanId}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminShell>
   );
 };

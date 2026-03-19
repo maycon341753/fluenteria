@@ -104,6 +104,11 @@ const Navbar = () => {
                   Financeiro
                 </button>
               ) : null}
+              {!isSuperAdmin ? (
+                <button onClick={() => navigate("/suporte")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                  Suporte
+                </button>
+              ) : null}
               {isSuperAdmin ? (
                 <button onClick={() => navigate("/admin")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                   Super Admin
@@ -171,6 +176,11 @@ const Navbar = () => {
                 {!isSuperAdmin ? (
                   <button onClick={() => { navigate("/financeiro"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
                     Financeiro
+                  </button>
+                ) : null}
+                {!isSuperAdmin ? (
+                  <button onClick={() => { navigate("/suporte"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
+                    Suporte
                   </button>
                 ) : null}
                 {isSuperAdmin ? (
