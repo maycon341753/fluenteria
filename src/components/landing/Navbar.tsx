@@ -86,6 +86,9 @@ const Navbar = () => {
               <button onClick={() => navigate("/modulos")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                 Módulos
               </button>
+              <button onClick={() => navigate("/financeiro")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                Financeiro
+              </button>
               {dashboard ? (
                 <>
                   <button onClick={() => navigate("/lesson")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
@@ -120,7 +123,7 @@ const Navbar = () => {
                   if (supabase) {
                     await supabase.auth.signOut();
                   }
-                  navigate("/login");
+                  navigate("/");
                 }}
               >
                 Sair
@@ -147,6 +150,9 @@ const Navbar = () => {
               <>
                 <button onClick={() => { navigate("/modulos"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
                   Módulos
+                </button>
+                <button onClick={() => { navigate("/financeiro"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
+                  Financeiro
                 </button>
                 {dashboard ? (
                   <>
@@ -177,7 +183,7 @@ const Navbar = () => {
                       await supabase.auth.signOut();
                     }
                     setMenuOpen(false);
-                    navigate("/login");
+                    navigate("/");
                   }}
                 >
                   Sair

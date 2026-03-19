@@ -15,6 +15,7 @@ import ModuleSelectPage from "./pages/ModuleSelectPage";
 import ChildDashboard from "./pages/ChildDashboard";
 import TeenDashboard from "./pages/TeenDashboard";
 import AdultDashboard from "./pages/AdultDashboard";
+import FinanceiroPage from "./pages/FinanceiroPage";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/referrals" element={<ReferralsPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/financeiro" element={<FinanceiroPage />} />
           <Route path="/eca-lgpd" element={<EcaLgpdPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
