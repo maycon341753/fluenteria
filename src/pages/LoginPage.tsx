@@ -5,6 +5,7 @@ import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
 import { resolvePostLoginRedirect } from "@/lib/postLoginRedirect";
+import { Eye, EyeOff } from "lucide-react";
 
 const formatCpf = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -28,6 +29,8 @@ const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalVariant, setModalVariant] = useState<"success" | "error">("success");
   const [modalTitle, setModalTitle] = useState("");
@@ -221,24 +224,44 @@ const LoginPage = () => {
             </div>
             <div>
               <label className="mb-1 block font-body text-sm font-semibold text-foreground">Senha</label>
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 pr-12 font-body text-foreground focus:border-primary focus:outline-none"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
             </div>
             {isSignup && (
               <div>
                 <label className="mb-1 block font-body text-sm font-semibold text-foreground">Confirmar senha</label>
-                <input
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  type="password"
-                  className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <input
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    type={showConfirmPassword ? "text" : "password"}
+                    className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 pr-12 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    aria-label={showConfirmPassword ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
             )}
             <Button variant="hero" size="lg" className="w-full" type="submit" disabled={isSubmitting}>
