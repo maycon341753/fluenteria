@@ -31,17 +31,45 @@ const AdminShell = ({ title, children }: Props) => {
             <aside className="md:col-span-3">
               <div className="rounded-3xl border-2 border-border bg-card p-4">
                 <div className="flex gap-2 overflow-x-auto md:flex-col md:overflow-visible">
-                  <Button variant="ghost" className="shrink-0 justify-start" onClick={() => navigate("/admin/financeiro")}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 justify-start md:whitespace-nowrap"
+                    onClick={() => navigate("/admin/financeiro")}
+                  >
                     Financeiro
                   </Button>
-                  <Button variant="ghost" className="shrink-0 justify-start" onClick={() => navigate("/admin/clientes")}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 justify-start md:whitespace-nowrap"
+                    onClick={() => navigate("/admin/clientes")}
+                  >
                     Clientes
                   </Button>
-                  <Button variant="ghost" className="shrink-0 justify-start" onClick={() => navigate("/admin/planos")}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 justify-start md:whitespace-nowrap"
+                    onClick={() => navigate("/admin/planos")}
+                  >
                     Planos
                   </Button>
-                  <Button variant="ghost" className="shrink-0 justify-start" onClick={() => navigate("/admin/chamados")}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 justify-start md:whitespace-nowrap"
+                    onClick={() => navigate("/admin/chamados")}
+                  >
                     Chamados
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 justify-start md:whitespace-nowrap"
+                    onClick={() => navigate("/admin/conteudos")}
+                  >
+                    Conteúdos
                   </Button>
                 </div>
               </div>
