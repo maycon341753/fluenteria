@@ -1,5 +1,6 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import ActivePlanCard from "@/components/account/ActivePlanCard";
 import { Button } from "@/components/ui/button";
 import LessonProgressPanel from "@/components/dashboard/LessonProgressPanel";
 import { useNavigate } from "react-router-dom";
@@ -14,9 +15,12 @@ const ChildDashboard = () => {
         <div className="mx-auto max-w-4xl">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="font-display text-3xl font-bold text-foreground">Dashboard Criança 🧒</h1>
-            <Button variant="outline" onClick={() => navigate("/modulos")}>
-              Trocar módulo
-            </Button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <ActivePlanCard />
+              <Button variant="outline" onClick={() => navigate("/modulos")}>
+                Trocar módulo
+              </Button>
+            </div>
           </div>
 
           <LessonProgressPanel module="crianca" />
