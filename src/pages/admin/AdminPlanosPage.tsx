@@ -73,7 +73,7 @@ const AdminPlanosPage = () => {
       ) : (
         <div className="rounded-3xl border-2 border-border bg-card p-6">
           <h2 className="font-display text-xl font-bold text-foreground">Lista de planos</h2>
-          <div className="mt-4">
+          <div className="mt-4 hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -103,6 +103,33 @@ const AdminPlanosPage = () => {
                 ) : null}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:hidden">
+            {plans.length ? (
+              plans.map((p) => (
+                <div key={p.id} className="rounded-3xl border-2 border-border bg-background p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-display text-lg font-bold text-foreground">{p.name}</div>
+                      <div className="mt-1 font-body text-sm text-muted-foreground">
+                        {formatMoney(p.price_cents, p.currency)}/{p.interval === "year" ? "ano" : "mês"}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-body text-xs text-muted-foreground">Níveis</div>
+                      <div className="font-body text-sm text-foreground">{p.max_level ?? "Todos"}</div>
+                      <div className="mt-2 font-body text-xs text-muted-foreground">Usuários</div>
+                      <div className="font-body text-sm text-foreground">{p.max_users ?? "—"}</div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-3xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">
+                Nenhum plano encontrado.
+              </div>
+            )}
           </div>
         </div>
       )}

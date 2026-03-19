@@ -283,7 +283,7 @@ const AdminClientesPage = () => {
         <div className="rounded-3xl border-2 border-border bg-card p-6">
           <h2 className="font-display text-xl font-bold text-foreground">Clientes cadastrados</h2>
           <p className="mt-2 font-body text-sm text-muted-foreground">{profiles.length} registros</p>
-          <div className="mt-4">
+          <div className="mt-4 hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -329,6 +329,52 @@ const AdminClientesPage = () => {
                 ) : null}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:hidden">
+            {profiles.length ? (
+              profiles.map((p) => {
+                const sub = subByUserId[p.user_id];
+                const planName = sub?.plan_id ? planNameById[sub.plan_id] ?? sub.plan_id : "—";
+                return (
+                  <div key={p.user_id} className="rounded-3xl border-2 border-border bg-background p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-display text-lg font-bold text-foreground">{p.full_name ?? "—"}</div>
+                        <div className="mt-1 truncate font-body text-sm text-muted-foreground">{p.email ?? "—"}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openDetail(p.user_id)}>
+                          Detalhe
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => openEdit(p.user_id)}>
+                          Editar
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-body text-xs text-muted-foreground">Plano</span>
+                        <span className="font-body text-sm text-foreground">{planName}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-body text-xs text-muted-foreground">Status</span>
+                        <span className="font-body text-sm text-foreground">{sub?.status ?? "—"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-body text-xs text-muted-foreground">Cadastro</span>
+                        <span className="font-body text-sm text-foreground">{formatDate(p.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-3xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">
+                Nenhum cliente encontrado.
+              </div>
+            )}
           </div>
         </div>
       )}

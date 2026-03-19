@@ -140,7 +140,7 @@ const AdminFinanceiroPage = () => {
                 Atualizar
               </Button>
             </div>
-            <div className="mt-4">
+            <div className="mt-4 hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -172,6 +172,33 @@ const AdminFinanceiroPage = () => {
                   ) : null}
                 </TableBody>
               </Table>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:hidden">
+              {invoices.length ? (
+                invoices.map((inv) => (
+                  <div key={inv.id} className="rounded-3xl border-2 border-border bg-background p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-body text-xs text-muted-foreground">{inv.user_id.slice(0, 8)}…</div>
+                        <div className="mt-1 font-display text-lg font-bold text-foreground">{formatMoney(inv.amount_cents, inv.currency)}</div>
+                        <div className="mt-1 font-body text-sm text-muted-foreground">{inv.status}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-body text-xs text-muted-foreground">Vencimento</div>
+                        <div className="font-body text-sm text-foreground">{formatDateTime(inv.due_date)}</div>
+                        <div className="mt-2 font-body text-xs text-muted-foreground">Pago em</div>
+                        <div className="font-body text-sm text-foreground">{formatDateTime(inv.paid_at)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 font-body text-xs text-muted-foreground">Criada: {formatDateTime(inv.created_at)}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-3xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">
+                  Nenhuma fatura encontrada.
+                </div>
+              )}
             </div>
           </div>
         </div>

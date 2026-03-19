@@ -88,7 +88,7 @@ const AdminChamadosPage = () => {
               Atualizar
             </Button>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -135,6 +135,41 @@ const AdminChamadosPage = () => {
               </TableBody>
             </Table>
           </div>
+
+          <div className="mt-4 grid gap-3 md:hidden">
+            {tickets.length ? (
+              tickets.map((t) => (
+                <div key={t.id} className="rounded-3xl border-2 border-border bg-background p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-body text-xs text-muted-foreground">{t.id.slice(0, 8)}…</div>
+                      <div className="mt-1 truncate font-display text-lg font-bold text-foreground">{t.subject}</div>
+                      <div className="mt-1 font-body text-sm text-muted-foreground">Cliente: {t.user_id.slice(0, 8)}…</div>
+                      <div className="mt-1 font-body text-sm text-muted-foreground">Criado: {formatDateTime(t.created_at)}</div>
+                      <div className="mt-1 font-body text-sm text-muted-foreground">Status: {t.status}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isUpdating === t.id}
+                      onClick={() => updateStatus(t.id, "in_progress")}
+                    >
+                      Em andamento
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={isUpdating === t.id} onClick={() => updateStatus(t.id, "closed")}>
+                      Fechar
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-3xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">
+                Nenhum chamado encontrado.
+              </div>
+            )}
+          </div>
         </div>
       )}
     </AdminShell>
@@ -148,4 +183,3 @@ const AdminChamadosPageProtected = () => (
 );
 
 export default AdminChamadosPageProtected;
-
