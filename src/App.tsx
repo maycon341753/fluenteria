@@ -16,6 +16,11 @@ import ChildDashboard from "./pages/ChildDashboard";
 import TeenDashboard from "./pages/TeenDashboard";
 import AdultDashboard from "./pages/AdultDashboard";
 import FinanceiroPage from "./pages/FinanceiroPage";
+import AdminIndexPage from "./pages/admin/AdminIndexPage";
+import AdminFinanceiroPage from "./pages/admin/AdminFinanceiroPage";
+import AdminClientesPage from "./pages/admin/AdminClientesPage";
+import AdminPlanosPage from "./pages/admin/AdminPlanosPage";
+import AdminChamadosPage from "./pages/admin/AdminChamadosPage";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +42,11 @@ const App = () => (
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/financeiro" element={<FinanceiroPage />} />
+          <Route path="/admin" element={<AdminIndexPage />} />
+          <Route path="/admin/financeiro" element={<AdminFinanceiroPage />} />
+          <Route path="/admin/clientes" element={<AdminClientesPage />} />
+          <Route path="/admin/planos" element={<AdminPlanosPage />} />
+          <Route path="/admin/chamados" element={<AdminChamadosPage />} />
           <Route path="/eca-lgpd" element={<EcaLgpdPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

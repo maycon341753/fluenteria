@@ -17,6 +17,7 @@ const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [selectedModule, setSelectedModule] = useState<ModuleKey | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -25,6 +26,7 @@ const Navbar = () => {
       if (!user) {
         setUserName(null);
         setSelectedModule(null);
+        setIsSuperAdmin(false);
         return;
       }
 
@@ -39,6 +41,13 @@ const Navbar = () => {
       setSelectedModule(module ?? null);
     };
 
+    const fetchRole = async (userId: string) => {
+      if (!supabase) return;
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "super_admin").maybeSingle();
+      if (!mounted) return;
+      setIsSuperAdmin(Boolean(data));
+    };
+
     (async () => {
       if (!supabase) return;
       const { data } = await supabase.auth.getSession();
@@ -47,6 +56,7 @@ const Navbar = () => {
       setSessionState(user ? { id: user.id, email: user.email, user_metadata: user.user_metadata } : null);
       if (user) {
         await fetchModule(user.id);
+        await fetchRole(user.id);
       }
     })();
 
@@ -59,6 +69,7 @@ const Navbar = () => {
       setSessionState(user ? { id: user.id, email: user.email, user_metadata: user.user_metadata } : null);
       if (user) {
         void fetchModule(user.id);
+        void fetchRole(user.id);
       }
     });
 
@@ -89,6 +100,11 @@ const Navbar = () => {
               <button onClick={() => navigate("/financeiro")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                 Financeiro
               </button>
+              {isSuperAdmin ? (
+                <button onClick={() => navigate("/admin")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                  Super Admin
+                </button>
+              ) : null}
               {dashboard ? (
                 <>
                   <button onClick={() => navigate(dashboard.path)} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
@@ -99,17 +115,18 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              <button onClick={() => navigate("/parent-dashboard")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-                Pais
+              <button onClick={() => navigate("/")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                Início
               </button>
-              <button onClick={() => navigate("/referrals")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-                Indicar
+              <button onClick={() => navigate("/pricing")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                Planos
               </button>
             </>
           )}
           {userName ? (
             <div className="flex items-center gap-3">
-              <span className="font-body text-sm font-semibold text-foreground">{userName}</span>
+              <span className="font-body text-sm text-muted-foreground">Olá,</span>
+              <span className="font-display text-sm font-bold text-primary">{userName}</span>
               <Button
                 variant="outline"
                 size="sm"
@@ -148,6 +165,11 @@ const Navbar = () => {
                 <button onClick={() => { navigate("/financeiro"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
                   Financeiro
                 </button>
+                {isSuperAdmin ? (
+                  <button onClick={() => { navigate("/admin"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
+                    Super Admin
+                  </button>
+                ) : null}
                 {dashboard ? (
                   <>
                     <button onClick={() => { navigate(dashboard.path); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
@@ -159,13 +181,15 @@ const Navbar = () => {
             ) : (
               <>
                 <button onClick={() => { navigate("/"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Início</button>
-                <button onClick={() => { navigate("/parent-dashboard"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Pais</button>
-                <button onClick={() => { navigate("/referrals"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Indicar</button>
+                <button onClick={() => { navigate("/pricing"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Planos</button>
               </>
             )}
             {userName ? (
               <>
-                <div className="font-body text-sm font-semibold text-foreground py-2">{userName}</div>
+              <div className="py-2">
+                <span className="font-body text-sm text-muted-foreground">Olá, </span>
+                <span className="font-display text-sm font-bold text-primary">{userName}</span>
+              </div>
                 <Button
                   variant="outline"
                   onClick={async () => {

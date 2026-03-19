@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
+import { resolvePostLoginRedirect } from "@/lib/postLoginRedirect";
 
 const formatCpf = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -32,6 +33,24 @@ const LoginPage = () => {
   const [modalTitle, setModalTitle] = useState("");
   const [modalDescription, setModalDescription] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      if (!supabase) return;
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      const userId = data.session?.user.id;
+      if (!userId) return;
+      const path = await resolvePostLoginRedirect(userId);
+      navigate(path, { replace: true });
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -153,7 +172,15 @@ const LoginPage = () => {
                   return;
                 }
 
-                navigate("/modulos");
+                const { data } = await supabase.auth.getSession();
+                const userId = data.session?.user.id;
+                if (!userId) {
+                  navigate("/modulos");
+                  return;
+                }
+
+                const path = await resolvePostLoginRedirect(userId);
+                navigate(path, { replace: true });
               } finally {
                 setIsSubmitting(false);
               }
