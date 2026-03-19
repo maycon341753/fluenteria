@@ -94,18 +94,22 @@ const Navbar = () => {
         <div className="hidden items-center gap-6 md:flex">
           {isLoggedIn ? (
             <>
-              <button onClick={() => navigate("/modulos")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-                Módulos
-              </button>
-              <button onClick={() => navigate("/financeiro")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-                Financeiro
-              </button>
+              {!isSuperAdmin ? (
+                <button onClick={() => navigate("/modulos")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                  Módulos
+                </button>
+              ) : null}
+              {!isSuperAdmin ? (
+                <button onClick={() => navigate("/financeiro")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                  Financeiro
+                </button>
+              ) : null}
               {isSuperAdmin ? (
                 <button onClick={() => navigate("/admin")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                   Super Admin
                 </button>
               ) : null}
-              {dashboard ? (
+              {!isSuperAdmin && dashboard ? (
                 <>
                   <button onClick={() => navigate(dashboard.path)} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                     {dashboard.label}
@@ -159,18 +163,22 @@ const Navbar = () => {
           <div className="flex flex-col gap-3">
             {isLoggedIn ? (
               <>
-                <button onClick={() => { navigate("/modulos"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
-                  Módulos
-                </button>
-                <button onClick={() => { navigate("/financeiro"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
-                  Financeiro
-                </button>
+                {!isSuperAdmin ? (
+                  <button onClick={() => { navigate("/modulos"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
+                    Módulos
+                  </button>
+                ) : null}
+                {!isSuperAdmin ? (
+                  <button onClick={() => { navigate("/financeiro"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
+                    Financeiro
+                  </button>
+                ) : null}
                 {isSuperAdmin ? (
                   <button onClick={() => { navigate("/admin"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
                     Super Admin
                   </button>
                 ) : null}
-                {dashboard ? (
+                {!isSuperAdmin && dashboard ? (
                   <>
                     <button onClick={() => { navigate(dashboard.path); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
                       {dashboard.label}
