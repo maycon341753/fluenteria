@@ -34,7 +34,7 @@ const HeroSection = () => {
               Para todas as idades. E para crianças, os pais acompanham a evolução pelo WhatsApp🚀
             </p>
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-center md:justify-start">
-              <Button variant="hero" size="xl" onClick={() => navigate("/lesson")}>
+              <Button variant="hero" size="xl" onClick={() => navigate("/login?mode=signup")}>
                 Começar Grátis 🎉
               </Button>
               <Button variant="outline" size="lg" onClick={() => navigate("/pricing")}>

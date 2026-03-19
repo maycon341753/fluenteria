@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Check, Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const plans = [
   {
@@ -47,6 +48,8 @@ const plans = [
 ];
 
 const PricingSection = () => {
+  const navigate = useNavigate();
+
   return (
     <section className="bg-background py-16 md:py-24" id="pricing">
       <div className="container mx-auto px-4">
@@ -98,7 +101,7 @@ const PricingSection = () => {
                   </li>
                 ))}
               </ul>
-              <Button variant={plan.variant} className="w-full" size="lg">
+              <Button variant={plan.variant} className="w-full" size="lg" onClick={() => navigate("/login?mode=signup")}>
                 {plan.price === "R$ 0" ? "Começar Grátis" : "Teste 7 Dias Grátis"}
               </Button>
             </div>
