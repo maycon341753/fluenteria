@@ -81,9 +81,6 @@ const Navbar = () => {
 
         {/* Desktop links */}
         <div className="hidden items-center gap-6 md:flex">
-          <button onClick={() => navigate("/")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-            Início
-          </button>
           {isLoggedIn ? (
             <>
               <button onClick={() => navigate("/modulos")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
@@ -146,7 +143,6 @@ const Navbar = () => {
       {menuOpen && (
         <div className="border-t border-border bg-card px-4 py-4 md:hidden animate-slide-up">
           <div className="flex flex-col gap-3">
-            <button onClick={() => { navigate("/"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Início</button>
             {isLoggedIn ? (
               <>
                 <button onClick={() => { navigate("/modulos"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
@@ -165,6 +161,7 @@ const Navbar = () => {
               </>
             ) : (
               <>
+                <button onClick={() => { navigate("/"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Início</button>
                 <button onClick={() => { navigate("/lesson"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Aprender</button>
                 <button onClick={() => { navigate("/parent-dashboard"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Pais</button>
                 <button onClick={() => { navigate("/referrals"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Indicar</button>
