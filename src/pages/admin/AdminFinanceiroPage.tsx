@@ -18,6 +18,12 @@ type InvoiceRow = {
   created_at: string;
 };
 
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+};
+
 type SubscriptionRow = {
   user_id: string;
   plan_id: string | null;
@@ -52,11 +58,14 @@ const AdminFinanceiroPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [profilesByUserId, setProfilesByUserId] = useState<Record<string, ProfileRow>>({});
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
   const [metricsYear, setMetricsYear] = useState<number>(new Date().getFullYear());
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<FinanceMetricRow[]>([]);
+
+  const latestInvoices = useMemo(() => invoices.slice(0, 5), [invoices]);
 
   useEffect(() => {
     let mounted = true;
@@ -83,6 +92,26 @@ const AdminFinanceiroPage = () => {
         return;
       }
 
+      const invRows = ((invData ?? []) as InvoiceRow[]) ?? [];
+      const userIds = Array.from(new Set(invRows.map((r) => r.user_id).filter(Boolean)));
+      if (userIds.length) {
+        const { data: profData, error: profError } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", userIds)
+          .limit(200);
+
+        if (!mounted) return;
+
+        if (!profError) {
+          const map: Record<string, ProfileRow> = {};
+          for (const p of ((profData ?? []) as ProfileRow[]) ?? []) {
+            if (p.user_id) map[p.user_id] = p;
+          }
+          setProfilesByUserId(map);
+        }
+      }
+
       const { data: subData, error: subError } = await supabase
         .from("user_subscriptions")
         .select("user_id, plan_id, status, updated_at")
@@ -97,7 +126,7 @@ const AdminFinanceiroPage = () => {
         return;
       }
 
-      setInvoices(((invData ?? []) as InvoiceRow[]) ?? []);
+      setInvoices(invRows);
       setSubscriptions(((subData ?? []) as SubscriptionRow[]) ?? []);
       setIsLoading(false);
     })();
@@ -204,9 +233,11 @@ const AdminFinanceiroPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((inv) => (
+                  {latestInvoices.map((inv) => (
                     <TableRow key={inv.id}>
-                      <TableCell className="font-body text-xs text-muted-foreground">{inv.user_id.slice(0, 8)}…</TableCell>
+                      <TableCell className="font-body">
+                        {profilesByUserId[inv.user_id]?.full_name ?? profilesByUserId[inv.user_id]?.email ?? `${inv.user_id.slice(0, 8)}…`}
+                      </TableCell>
                       <TableCell className="font-body">{inv.status}</TableCell>
                       <TableCell className="font-body">{formatMoney(inv.amount_cents, inv.currency)}</TableCell>
                       <TableCell className="font-body">{formatDateTime(inv.due_date)}</TableCell>
@@ -214,7 +245,7 @@ const AdminFinanceiroPage = () => {
                       <TableCell className="font-body">{formatDateTime(inv.created_at)}</TableCell>
                     </TableRow>
                   ))}
-                  {!invoices.length ? (
+                  {!latestInvoices.length ? (
                     <TableRow>
                       <TableCell colSpan={6} className="font-body text-muted-foreground">
                         Nenhuma fatura encontrada.
@@ -226,12 +257,14 @@ const AdminFinanceiroPage = () => {
             </div>
 
             <div className="mt-4 grid gap-3 md:hidden">
-              {invoices.length ? (
-                invoices.map((inv) => (
+              {latestInvoices.length ? (
+                latestInvoices.map((inv) => (
                   <div key={inv.id} className="rounded-3xl border-2 border-border bg-background p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-body text-xs text-muted-foreground">{inv.user_id.slice(0, 8)}…</div>
+                        <div className="font-body text-xs text-muted-foreground">
+                          {profilesByUserId[inv.user_id]?.full_name ?? profilesByUserId[inv.user_id]?.email ?? `${inv.user_id.slice(0, 8)}…`}
+                        </div>
                         <div className="mt-1 font-display text-lg font-bold text-foreground">{formatMoney(inv.amount_cents, inv.currency)}</div>
                         <div className="mt-1 font-body text-sm text-muted-foreground">{inv.status}</div>
                       </div>
