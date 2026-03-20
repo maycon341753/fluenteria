@@ -38,6 +38,16 @@ type PixPaymentStatus = "pending" | "paid" | "expired" | "canceled";
 
 type BillingCycle = "month" | "year";
 
+type PaymentMethod = "pix" | "credit_card";
+
+type CardCheckout = {
+  invoice_id: string;
+  amount_cents: number;
+  currency: string;
+  provider_payment_id: string;
+  status: string;
+};
+
 const formatCpfCnpj = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 14);
   if (digits.length <= 11) {
@@ -71,6 +81,27 @@ const formatMoney = (amountCents: number, currency: string) => {
   } catch {
     return `${currency} ${amount.toFixed(2)}`;
   }
+};
+
+const formatCardNumber = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 19);
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+};
+
+const formatPostalCode = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+};
+
+const formatPhoneBr = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 13);
+  if (digits.length <= 2) return digits;
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  if (rest.length <= 4) return `(${ddd}) ${rest}`;
+  if (rest.length <= 8) return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5, 9)}`;
 };
 
 const getPlanMarketing = (name: string) => {
@@ -132,10 +163,21 @@ const FinanceiroPlanosPage = () => {
   const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
   const [checkoutCycle, setCheckoutCycle] = useState<BillingCycle>("month");
   const [checkoutStatus, setCheckoutStatus] = useState<PixPaymentStatus | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [cardCheckout, setCardCheckout] = useState<CardCheckout | null>(null);
+  const [cardInvoiceStatus, setCardInvoiceStatus] = useState<"pending" | "paid" | "canceled" | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [cpfCnpjRequired, setCpfCnpjRequired] = useState(false);
+  const [cardHolderName, setCardHolderName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpMonth, setCardExpMonth] = useState("");
+  const [cardExpYear, setCardExpYear] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
+  const [cardPhone, setCardPhone] = useState("");
+  const [cardPostalCode, setCardPostalCode] = useState("");
+  const [cardAddressNumber, setCardAddressNumber] = useState("");
 
   const load = async () => {
     if (!supabase) {
@@ -277,19 +319,96 @@ const FinanceiroPlanosPage = () => {
     }
   };
 
+  const createCreditCardCheckout = async (plan: PlanRow, billingCycle: BillingCycle) => {
+    if (!supabase) return;
+    setIsCheckingOut(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      const email = sessionData.session?.user.email ?? null;
+      const metaFullName = (sessionData.session?.user.user_metadata?.full_name as string | undefined) ?? "";
+
+      if (!accessToken) {
+        setCheckoutError("Sessão expirada. Faça login novamente.");
+        return;
+      }
+
+      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+      const digits = cpfCnpj.replace(/\D/g, "");
+      const cpfDigits = digits.length === 11 || digits.length === 14 ? digits : null;
+      if (!cpfDigits) {
+        setCpfCnpjRequired(true);
+        setCheckoutError(null);
+        return;
+      }
+
+      const res = await fetch(`${apiBase}/api/asaas/create-credit-card-checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          plan_id: plan.id,
+          billing_cycle: billingCycle,
+          cpf_cnpj: cpfDigits,
+          holder_name: cardHolderName.trim() || metaFullName,
+          card_number: cardNumber,
+          card_exp_month: cardExpMonth,
+          card_exp_year: cardExpYear,
+          card_cvc: cardCvc,
+          holder_phone: cardPhone,
+          holder_postal_code: cardPostalCode,
+          holder_address_number: cardAddressNumber,
+          holder_email: email,
+        }),
+      });
+
+      const json = (await res.json()) as { error?: string } & Partial<CardCheckout>;
+
+      if (!res.ok) {
+        if (json.error === "cpf_required") {
+          setCpfCnpjRequired(true);
+          setCheckoutError("Informe CPF ou CNPJ para continuar.");
+          return;
+        }
+        setCheckoutError(json.error ?? "Não foi possível gerar a cobrança no cartão.");
+        return;
+      }
+
+      setCardCheckout(json as CardCheckout);
+      setCardInvoiceStatus("pending");
+      setCheckoutError(null);
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const openCheckout = async (plan: PlanRow) => {
     if (!supabase) return;
     setCheckoutPlan(plan);
     setCheckoutCycle("month");
+    setPaymentMethod("pix");
     setCheckout(null);
     setCheckoutQr(null);
     setCheckoutStatus(null);
+    setCardCheckout(null);
+    setCardInvoiceStatus(null);
     setCheckoutError(null);
     setCpfCnpjRequired(false);
     setCheckoutOpen(true);
+    setCardHolderName("");
+    setCardNumber("");
+    setCardExpMonth("");
+    setCardExpYear("");
+    setCardCvc("");
+    setCardPhone("");
+    setCardPostalCode("");
+    setCardAddressNumber("");
 
     if (plan.price_cents === 0) {
       setIsSubmittingPlanId(plan.id);
+      setErrorMessage(null);
       setErrorMessage(null);
       try {
         const { error } = await supabase.rpc("request_plan_subscription", { p_plan_id: plan.id });
@@ -308,12 +427,15 @@ const FinanceiroPlanosPage = () => {
 
     const { data: sessionData } = await supabase.auth.getSession();
     const metaCpf = (sessionData.session?.user.user_metadata?.cpf as string | undefined) ?? "";
+    const metaFullName = (sessionData.session?.user.user_metadata?.full_name as string | undefined) ?? "";
     if (metaCpf) setCpfCnpj(formatCpfCnpj(metaCpf));
+    if (metaFullName) setCardHolderName(metaFullName);
   };
 
   useEffect(() => {
     if (!supabase) return;
     if (!checkoutOpen) return;
+    if (paymentMethod !== "pix") return;
     if (!checkout?.payment_id) return;
     if (checkoutStatus !== "pending") return;
 
@@ -342,7 +464,37 @@ const FinanceiroPlanosPage = () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, [checkout?.payment_id, checkoutOpen, checkoutStatus]);
+  }, [checkout?.payment_id, checkoutOpen, checkoutStatus, paymentMethod]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    if (!checkoutOpen) return;
+    if (paymentMethod !== "credit_card") return;
+    if (!cardCheckout?.invoice_id) return;
+    if (cardInvoiceStatus !== "pending") return;
+
+    let active = true;
+    const interval = window.setInterval(async () => {
+      const { data, error } = await supabase.from("invoices").select("status").eq("id", cardCheckout.invoice_id).maybeSingle();
+
+      if (!active) return;
+      if (error) {
+        setCheckoutError(error.message);
+        return;
+      }
+
+      const status = (data?.status as "pending" | "paid" | "canceled" | undefined) ?? "pending";
+      setCardInvoiceStatus(status);
+      if (status === "paid") {
+        await load();
+      }
+    }, 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [cardCheckout?.invoice_id, cardInvoiceStatus, checkoutOpen, paymentMethod]);
 
   const copyPix = async () => {
     if (!checkout?.pix_payload) return;
@@ -488,12 +640,10 @@ const FinanceiroPlanosPage = () => {
       </main>
 
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-xl overflow-hidden">
+        <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Pagamento via PIX</DialogTitle>
-            <DialogDescription>
-              {checkoutPlan ? `Plano: ${checkoutPlan.name} · ${checkoutPriceLabel}` : "—"}
-            </DialogDescription>
+            <DialogTitle>Pagamento</DialogTitle>
+            <DialogDescription>{checkoutPlan ? `Plano: ${checkoutPlan.name} · ${checkoutPriceLabel}` : "—"}</DialogDescription>
           </DialogHeader>
 
           {checkoutError ? (
@@ -502,7 +652,51 @@ const FinanceiroPlanosPage = () => {
             </div>
           ) : null}
 
-          {!checkout && checkoutPlan?.price_cents ? (
+          {!checkout && !cardCheckout && checkoutPlan?.price_cents ? (
+            <div className="grid gap-3 rounded-3xl border-2 border-border bg-background p-4">
+              <div className="font-body text-sm font-semibold text-foreground">Forma de pagamento</div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod("pix");
+                    setCheckout(null);
+                    setCheckoutQr(null);
+                    setCheckoutStatus(null);
+                    setCardCheckout(null);
+                    setCardInvoiceStatus(null);
+                    setCheckoutError(null);
+                  }}
+                  className={`rounded-2xl border-2 px-4 py-3 text-left transition-all ${
+                    paymentMethod === "pix" ? "border-primary bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <div className="font-display text-sm font-bold text-foreground">PIX</div>
+                  <div className="mt-1 font-body text-xs text-muted-foreground">QR Code e copia e cola</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod("credit_card");
+                    setCheckout(null);
+                    setCheckoutQr(null);
+                    setCheckoutStatus(null);
+                    setCardCheckout(null);
+                    setCardInvoiceStatus(null);
+                    setCheckoutError(null);
+                  }}
+                  className={`rounded-2xl border-2 px-4 py-3 text-left transition-all ${
+                    paymentMethod === "credit_card" ? "border-primary bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <div className="font-display text-sm font-bold text-foreground">Cartão</div>
+                  <div className="mt-1 font-body text-xs text-muted-foreground">Crédito</div>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {!checkout && !cardCheckout && checkoutPlan?.price_cents ? (
             <div className="grid gap-3 rounded-3xl border-2 border-border bg-background p-4">
               <div className="font-body text-sm font-semibold text-foreground">Tipo de assinatura</div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -530,7 +724,7 @@ const FinanceiroPlanosPage = () => {
             </div>
           ) : null}
 
-          {!checkout && checkoutPlan?.price_cents && !cpfCnpjRequired ? (
+          {!checkout && !cardCheckout && checkoutPlan?.price_cents && paymentMethod === "pix" && !cpfCnpjRequired ? (
             <div className="flex items-center justify-end">
               <Button
                 variant="hero"
@@ -546,11 +740,11 @@ const FinanceiroPlanosPage = () => {
             </div>
           ) : null}
 
-          {cpfCnpjRequired && !checkout ? (
+          {cpfCnpjRequired && !checkout && !cardCheckout ? (
             <div className="grid gap-4 rounded-3xl border-2 border-border bg-background p-4">
               <div>
                 <div className="font-body text-sm font-semibold text-foreground">CPF ou CNPJ</div>
-                <div className="mt-1 font-body text-xs text-muted-foreground">Necessário para gerar a cobrança PIX.</div>
+                <div className="mt-1 font-body text-xs text-muted-foreground">Necessário para gerar a cobrança.</div>
                 <input
                   value={cpfCnpj}
                   onChange={(e) => setCpfCnpj(formatCpfCnpj(e.target.value))}
@@ -566,10 +760,111 @@ const FinanceiroPlanosPage = () => {
                   onClick={() => {
                     if (!checkoutPlan) return;
                     const digits = cpfCnpj.replace(/\D/g, "");
-                    void createPixCheckout(checkoutPlan, digits.length === 11 || digits.length === 14 ? digits : null, checkoutCycle);
+                    if (paymentMethod === "pix") {
+                      void createPixCheckout(checkoutPlan, digits.length === 11 || digits.length === 14 ? digits : null, checkoutCycle);
+                      return;
+                    }
+                    void createCreditCardCheckout(checkoutPlan, checkoutCycle);
                   }}
                 >
-                  Gerar PIX
+                  Continuar
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {!checkout && !cardCheckout && checkoutPlan?.price_cents && paymentMethod === "credit_card" && !cpfCnpjRequired ? (
+            <div className="grid gap-4 rounded-3xl border-2 border-border bg-background p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <div className="font-body text-sm font-semibold text-foreground">Nome no cartão</div>
+                  <input
+                    value={cardHolderName}
+                    onChange={(e) => setCardHolderName(e.target.value)}
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="Nome completo"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <div className="font-body text-sm font-semibold text-foreground">Número do cartão</div>
+                  <input
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                    inputMode="numeric"
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="0000 0000 0000 0000"
+                  />
+                </div>
+                <div>
+                  <div className="font-body text-sm font-semibold text-foreground">Mês</div>
+                  <input
+                    value={cardExpMonth}
+                    onChange={(e) => setCardExpMonth(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                    inputMode="numeric"
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="MM"
+                  />
+                </div>
+                <div>
+                  <div className="font-body text-sm font-semibold text-foreground">Ano</div>
+                  <input
+                    value={cardExpYear}
+                    onChange={(e) => setCardExpYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    inputMode="numeric"
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="AAAA"
+                  />
+                </div>
+                <div>
+                  <div className="font-body text-sm font-semibold text-foreground">CVC</div>
+                  <input
+                    value={cardCvc}
+                    onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    inputMode="numeric"
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="000"
+                  />
+                </div>
+                <div>
+                  <div className="font-body text-sm font-semibold text-foreground">Telefone</div>
+                  <input
+                    value={cardPhone}
+                    onChange={(e) => setCardPhone(formatPhoneBr(e.target.value))}
+                    inputMode="tel"
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                <div>
+                  <div className="font-body text-sm font-semibold text-foreground">CEP</div>
+                  <input
+                    value={cardPostalCode}
+                    onChange={(e) => setCardPostalCode(formatPostalCode(e.target.value))}
+                    inputMode="numeric"
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="00000-000"
+                  />
+                </div>
+                <div>
+                  <div className="font-body text-sm font-semibold text-foreground">Número</div>
+                  <input
+                    value={cardAddressNumber}
+                    onChange={(e) => setCardAddressNumber(e.target.value)}
+                    className="mt-2 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                    placeholder="123"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
+                <Button
+                  variant="hero"
+                  disabled={isCheckingOut || !checkoutPlan}
+                  onClick={() => {
+                    if (!checkoutPlan) return;
+                    void createCreditCardCheckout(checkoutPlan, checkoutCycle);
+                  }}
+                >
+                  Pagar com cartão
                 </Button>
               </div>
             </div>
@@ -583,7 +878,7 @@ const FinanceiroPlanosPage = () => {
 
           {isCheckingOut ? (
             <div className="rounded-3xl border-2 border-border bg-background p-4 font-body text-sm text-muted-foreground">
-              Gerando QR Code PIX...
+              Processando pagamento...
             </div>
           ) : null}
 
@@ -616,12 +911,26 @@ const FinanceiroPlanosPage = () => {
             </div>
           ) : null}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCheckoutOpen(false)}>
+          {cardCheckout ? (
+            <div className="grid gap-3 rounded-3xl border-2 border-border bg-background p-4">
+              <div className="font-body text-sm text-muted-foreground">Cobrança criada</div>
+              <div className="font-body text-xs text-muted-foreground">ID: {cardCheckout.provider_payment_id}</div>
+              {cardInvoiceStatus === "pending" ? (
+                <div className="font-body text-sm text-muted-foreground">Aguardando confirmação...</div>
+              ) : null}
+              {cardInvoiceStatus === "paid" ? (
+                <div className="font-body text-sm text-success">Pagamento confirmado.</div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-3">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => setCheckoutOpen(false)}>
               Fechar
             </Button>
-            {checkoutStatus === "paid" ? (
+            {checkoutStatus === "paid" || cardInvoiceStatus === "paid" ? (
               <Button
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setCheckoutOpen(false);
                   navigate("/financeiro");

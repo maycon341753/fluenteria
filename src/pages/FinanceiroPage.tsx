@@ -29,6 +29,7 @@ type Invoice = {
   due_date: string | null;
   paid_at: string | null;
   created_at: string;
+  billing_cycle: "month" | "year" | null;
 };
 
 const formatMoney = (amountCents: number, currency: string) => {
@@ -53,6 +54,8 @@ const addDaysIso = (value: string, days: number) => {
   date.setDate(date.getDate() + days);
   return date.toISOString();
 };
+
+const getCycleDays = (cycle: Invoice["billing_cycle"]) => (cycle === "year" ? 365 : 30);
 
 const FinanceiroPage = () => {
   const navigate = useNavigate();
@@ -123,7 +126,7 @@ const FinanceiroPage = () => {
 
       const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
-        .select("id, status, amount_cents, currency, due_date, paid_at, created_at")
+        .select("id, status, amount_cents, currency, due_date, paid_at, created_at, billing_cycle")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(100);
@@ -179,8 +182,8 @@ const FinanceiroPage = () => {
 
   const nextDueIso = useMemo(() => {
     if (subscription?.plan_id && isFreePlan) return freeEndIso;
-    if (latestPending) return addDaysIso(latestPending.created_at, 30);
-    if (latestPaid) return addDaysIso(latestPaid.paid_at ?? latestPaid.created_at, 30);
+    if (latestPending) return addDaysIso(latestPending.created_at, getCycleDays(latestPending.billing_cycle));
+    if (latestPaid) return addDaysIso(latestPaid.paid_at ?? latestPaid.created_at, getCycleDays(latestPaid.billing_cycle));
     return subscription?.current_period_end ?? null;
   }, [freeEndIso, isFreePlan, latestPaid, latestPending, subscription?.current_period_end, subscription?.plan_id]);
 
@@ -283,7 +286,9 @@ const FinanceiroPage = () => {
                         <div key={inv.id} className="rounded-2xl border-2 border-border bg-background p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="font-body text-sm font-semibold text-foreground">Vencimento: {formatDate(addDaysIso(inv.created_at, 30))}</p>
+                              <p className="font-body text-sm font-semibold text-foreground">
+                                Vencimento: {formatDate(addDaysIso(inv.created_at, getCycleDays(inv.billing_cycle)))}
+                              </p>
                               <p className="mt-1 font-body text-xs text-muted-foreground">Criada em: {formatDate(inv.created_at)}</p>
                             </div>
                             <div className="text-right">

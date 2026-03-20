@@ -1,10 +1,18 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
-type CreateCheckoutBody = {
+type CreateCardCheckoutBody = {
   plan_id?: string;
-  cpf_cnpj?: string;
   billing_cycle?: "month" | "year";
+  cpf_cnpj?: string;
+  holder_name?: string;
+  card_number?: string;
+  card_exp_month?: string;
+  card_exp_year?: string;
+  card_cvc?: string;
+  holder_phone?: string;
+  holder_postal_code?: string;
+  holder_address_number?: string;
 };
 
 type PlanRow = {
@@ -23,12 +31,6 @@ type AsaasPaymentResponse = {
   dueDate: string;
   value: number;
   status: string;
-};
-
-type AsaasPixQrCodeResponse = {
-  encodedImage: string;
-  payload: string;
-  expirationDate: string | null;
 };
 
 const cors = (res: VercelResponse) => {
@@ -86,6 +88,42 @@ const normalizeBillingCycle = (value: unknown): "month" | "year" => {
   return "month";
 };
 
+const normalizeCardNumber = (value: string | null | undefined) => String(value ?? "").replace(/\D/g, "");
+
+const normalizeExpMonth = (value: string | null | undefined) => {
+  const digits = String(value ?? "").replace(/\D/g, "").slice(0, 2);
+  const n = Number(digits);
+  if (!Number.isFinite(n) || n < 1 || n > 12) return null;
+  return String(n).padStart(2, "0");
+};
+
+const normalizeExpYear = (value: string | null | undefined) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length === 2) return `20${digits}`;
+  if (digits.length === 4) return digits;
+  return null;
+};
+
+const normalizeCvc = (value: string | null | undefined) => String(value ?? "").replace(/\D/g, "").slice(0, 4);
+
+const normalizePostalCode = (value: string | null | undefined) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length !== 8) return null;
+  return digits;
+};
+
+const normalizePhone = (value: string | null | undefined) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 13) return null;
+  return digits;
+};
+
+const getRemoteIp = (req: VercelRequest) => {
+  const header = String(req.headers["x-forwarded-for"] ?? "");
+  const ip = header.split(",")[0]?.trim();
+  return ip || null;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   try {
@@ -100,7 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const authorization = req.headers.authorization ?? "";
     if (!authorization) return res.status(401).json({ error: "missing_authorization" });
 
-    const body = (req.body ?? {}) as CreateCheckoutBody;
+    const body = (req.body ?? {}) as CreateCardCheckoutBody;
     const planId = body.plan_id;
     if (!planId) return res.status(400).json({ error: "plan_id required" });
     const billingCycle = normalizeBillingCycle(body.billing_cycle);
@@ -139,7 +177,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!planData) return res.status(404).json({ error: "plan not found" });
 
     const plan = planData as PlanRow;
-    if (!plan.price_cents || plan.price_cents <= 0) return res.status(400).json({ error: "paid plan required for pix" });
+    if (!plan.price_cents || plan.price_cents <= 0) return res.status(400).json({ error: "paid plan required for credit card" });
 
     const profileQuery = await adminClient
       .from("profiles")
@@ -160,16 +198,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const docFromMeta = normalizeCpfCnpj(userCpf);
     const docFromProfile = normalizeCpfCnpj(profileDoc);
     const cpfCnpj = docFromBody ?? docFromMeta ?? docFromProfile;
+    if (!cpfCnpj) return res.status(400).json({ error: "cpf_required" });
 
     if (docFromBody && docFromBody !== docFromProfile) {
       const upd = await adminClient.from("profiles").update({ cpf_cnpj: docFromBody }).eq("user_id", userId);
       if (upd.error && !upd.error.message.toLowerCase().includes("cpf_cnpj")) {
         return res.status(400).json({ error: upd.error.message });
       }
-    }
-
-    if (!cpfCnpj) {
-      return res.status(400).json({ error: "cpf_required", detail: "Informe CPF ou CNPJ para gerar o PIX." });
     }
 
     if (!asaasCustomerId) {
@@ -202,26 +237,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })();
 
     const cycleDays = billingCycle === "year" ? 365 : 30;
-    const dueDate = formatDueDate(new Date());
     const value = Number((amountCents / 100).toFixed(2));
+
+    const holderName = String(body.holder_name ?? "").trim();
+    const cardNumber = normalizeCardNumber(body.card_number);
+    const expMonth = normalizeExpMonth(body.card_exp_month);
+    const expYear = normalizeExpYear(body.card_exp_year);
+    const cvc = normalizeCvc(body.card_cvc);
+    const phone = normalizePhone(body.holder_phone);
+    const postalCode = normalizePostalCode(body.holder_postal_code);
+    const addressNumber = String(body.holder_address_number ?? "").trim();
+
+    if (!holderName) return res.status(400).json({ error: "holder_name_required" });
+    if (!cardNumber || cardNumber.length < 13) return res.status(400).json({ error: "card_number_required" });
+    if (!expMonth) return res.status(400).json({ error: "card_exp_month_required" });
+    if (!expYear) return res.status(400).json({ error: "card_exp_year_required" });
+    if (!cvc || cvc.length < 3) return res.status(400).json({ error: "card_cvc_required" });
+    if (!postalCode) return res.status(400).json({ error: "postal_code_required" });
+    if (!addressNumber) return res.status(400).json({ error: "address_number_required" });
+    if (!phone) return res.status(400).json({ error: "phone_required" });
 
     const createdPayment = await asaasRequest<AsaasPaymentResponse>(asaasBaseUrl, asaasApiKey, "/payments", {
       method: "POST",
       body: JSON.stringify({
         customer: asaasCustomerId,
-        billingType: "PIX",
+        billingType: "CREDIT_CARD",
         value,
-        dueDate,
+        dueDate: formatDueDate(new Date()),
         description: `Assinatura ${plan.name} (${billingCycle === "year" ? "Anual" : "Mensal"})`,
-        externalReference: `${userId}:${plan.id}:${billingCycle}`,
+        externalReference: `${userId}:${plan.id}:${billingCycle}:credit_card`,
+        creditCard: {
+          holderName,
+          number: cardNumber,
+          expiryMonth: expMonth,
+          expiryYear: expYear,
+          ccv: cvc,
+        },
+        creditCardHolderInfo: {
+          name: holderName,
+          email: userEmail ?? undefined,
+          cpfCnpj,
+          postalCode,
+          addressNumber,
+          phone,
+        },
+        remoteIp: getRemoteIp(req) ?? undefined,
       }),
     });
 
-    const pixQr = await asaasRequest<AsaasPixQrCodeResponse>(asaasBaseUrl, asaasApiKey, `/payments/${createdPayment.id}/pixQrCode`, {
-      method: "GET",
-    });
-
-    const expiresAt = pixQr.expirationDate ? new Date(pixQr.expirationDate).toISOString() : null;
     const billingDueAt = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
 
     const invoiceInsertBase = {
@@ -236,86 +299,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       created_at: new Date().toISOString(),
     } as Record<string, unknown>;
 
-    let invoiceInsert:
-      | {
-          id: string;
-        }
-      | null = null;
-
     const invoiceAttempt = await adminClient
       .from("invoices")
-      .insert({ ...invoiceInsertBase, billing_cycle: billingCycle, plan_id: plan.id, payment_method: "pix" })
+      .insert({ ...invoiceInsertBase, billing_cycle: billingCycle, plan_id: plan.id, payment_method: "credit_card" })
       .select("id")
       .maybeSingle();
 
+    let invoiceId: string | null = null;
     if (invoiceAttempt.error) {
       const msg = invoiceAttempt.error.message.toLowerCase();
-      if (!msg.includes("billing_cycle") && !msg.includes("plan_id") && !msg.includes("payment_method")) {
+      if (msg.includes("billing_cycle") || msg.includes("plan_id") || msg.includes("payment_method")) {
+        const fallback = await adminClient.from("invoices").insert(invoiceInsertBase).select("id").maybeSingle();
+        if (fallback.error) return res.status(400).json({ error: fallback.error.message });
+        invoiceId = (fallback.data as { id: string } | null)?.id ?? null;
+      } else {
         return res.status(400).json({ error: invoiceAttempt.error.message });
       }
-      const fallback = await adminClient.from("invoices").insert(invoiceInsertBase).select("id").maybeSingle();
-      if (fallback.error) return res.status(400).json({ error: fallback.error.message });
-      invoiceInsert = fallback.data as { id: string } | null;
     } else {
-      invoiceInsert = invoiceAttempt.data as { id: string } | null;
+      invoiceId = (invoiceAttempt.data as { id: string } | null)?.id ?? null;
     }
 
-    const invoiceId = (invoiceInsert as { id: string } | null)?.id;
     if (!invoiceId) return res.status(500).json({ error: "invoice not created" });
 
-    const pixInsertBase = {
-      user_id: userId,
-      plan_id: plan.id,
-      invoice_id: invoiceId,
-      status: "pending",
-      provider: "asaas",
-      provider_payment_id: createdPayment.id,
-      pix_payload: pixQr.payload,
-      qr_code_base64: pixQr.encodedImage,
-      expires_at: expiresAt,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as Record<string, unknown>;
-
-    const pixAttempt = await adminClient
-      .from("pix_payments")
-      .insert({ ...pixInsertBase, billing_cycle: billingCycle })
-      .select("id")
-      .maybeSingle();
-
-    if (pixAttempt.error && pixAttempt.error.message.toLowerCase().includes("billing_cycle")) {
-      const fallback = await adminClient.from("pix_payments").insert(pixInsertBase).select("id").maybeSingle();
-      if (fallback.error) return res.status(400).json({ error: fallback.error.message });
-      const paymentId = (fallback.data as { id: string } | null)?.id;
-      if (!paymentId) return res.status(500).json({ error: "pix payment not created" });
-      return res.status(200).json({
-        payment_id: paymentId,
-        invoice_id: invoiceId,
-        amount_cents: amountCents,
-        currency: plan.currency,
-        pix_payload: pixQr.payload,
-        qr_code_base64: pixQr.encodedImage,
-        expires_at: expiresAt,
-        provider_payment_id: createdPayment.id,
-      });
-    }
-
-    if (pixAttempt.error) return res.status(400).json({ error: pixAttempt.error.message });
-    const paymentId = (pixAttempt.data as { id: string } | null)?.id;
-    if (!paymentId) return res.status(500).json({ error: "pix payment not created" });
-
     return res.status(200).json({
-      payment_id: paymentId,
       invoice_id: invoiceId,
       amount_cents: amountCents,
       currency: plan.currency,
-      pix_payload: pixQr.payload,
-      qr_code_base64: pixQr.encodedImage,
-      expires_at: expiresAt,
       provider_payment_id: createdPayment.id,
+      status: createdPayment.status,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "unexpected error";
     return res.status(500).json({ error: message });
   }
 }
+
