@@ -1,6 +1,7 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -34,6 +35,14 @@ const formatDate = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(date);
+};
+
+const getLocalDateKey = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 };
 
 const ModuleSelectPage = () => {
@@ -91,6 +100,8 @@ const ModuleSelectPage = () => {
   const [planInfoError, setPlanInfoError] = useState<string | null>(null);
   const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [upsellOpen, setUpsellOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -112,6 +123,7 @@ const ModuleSelectPage = () => {
       }
 
       const userId = data.session.user.id;
+      setUserId(userId);
       setUserCreatedAt((data.session.user.created_at as string | undefined) ?? null);
 
       const { data: subData, error: subError } = await supabase
@@ -204,6 +216,23 @@ const ModuleSelectPage = () => {
   }, [isFreePlan, userCreatedAt]);
 
   const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft < 0 : false), [freeDaysLeft]);
+
+  const shouldShowUpsell = useMemo(() => {
+    if (!userId) return false;
+    if (!planName || planName.toLowerCase() !== "gratuito") return false;
+    const key = `upsell_free_plan_last_shown_${userId}`;
+    const last = localStorage.getItem(key);
+    return last !== getLocalDateKey();
+  }, [planName, userId]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!shouldShowUpsell) return;
+    if (!userId) return;
+    const key = `upsell_free_plan_last_shown_${userId}`;
+    localStorage.setItem(key, getLocalDateKey());
+    setUpsellOpen(true);
+  }, [isLoading, shouldShowUpsell, userId]);
 
   const currentModule = useMemo(() => modules.find((m) => m.key === selectedModule) ?? modules[0], [modules, selectedModule]);
   const availableLevels = useMemo(() => {
@@ -419,6 +448,38 @@ const ModuleSelectPage = () => {
           ) : null}
         </div>
       </main>
+      <Dialog open={upsellOpen} onOpenChange={setUpsellOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{freeExpired ? "Seu período grátis terminou" : "Desbloqueie mais vantagens"}</DialogTitle>
+            <DialogDescription>
+              {freeExpired
+                ? "Para continuar usando a plataforma, é necessário assinar um plano pago."
+                : "Assine um plano pago e aproveite recursos completos para evoluir mais rápido."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 rounded-3xl border-2 border-border bg-background p-4 font-body text-sm text-foreground">
+            <div>- Acesso a todos os níveis</div>
+            <div>- Vídeos + Músicas completos</div>
+            <div>- Conteúdo e relatórios avançados (Max)</div>
+            <div>- Suporte prioritário</div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpsellOpen(false)}>
+              Fechar
+            </Button>
+            <Button
+              variant="hero"
+              onClick={() => {
+                setUpsellOpen(false);
+                navigate("/financeiro/planos");
+              }}
+            >
+              Ver planos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Footer />
     </div>
   );
