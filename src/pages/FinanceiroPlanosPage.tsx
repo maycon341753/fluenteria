@@ -36,6 +36,8 @@ type PixCheckout = {
 
 type PixPaymentStatus = "pending" | "paid" | "expired" | "canceled";
 
+type BillingCycle = "month" | "year";
+
 const formatCpfCnpj = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 14);
   if (digits.length <= 11) {
@@ -128,6 +130,7 @@ const FinanceiroPlanosPage = () => {
   const [checkoutPlan, setCheckoutPlan] = useState<PlanRow | null>(null);
   const [checkout, setCheckout] = useState<PixCheckout | null>(null);
   const [checkoutQr, setCheckoutQr] = useState<string | null>(null);
+  const [checkoutCycle, setCheckoutCycle] = useState<BillingCycle>("month");
   const [checkoutStatus, setCheckoutStatus] = useState<PixPaymentStatus | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -222,7 +225,7 @@ const FinanceiroPlanosPage = () => {
 
   const visiblePlans = useMemo(() => sortedPlans.filter((p) => p.is_active || p.id === currentPlanId), [currentPlanId, sortedPlans]);
 
-  const createPixCheckout = async (plan: PlanRow, cpfDigits: string | null) => {
+  const createPixCheckout = async (plan: PlanRow, cpfDigits: string | null, billingCycle: BillingCycle) => {
     if (!supabase) return;
     setIsCheckingOut(true);
     try {
@@ -240,7 +243,7 @@ const FinanceiroPlanosPage = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ plan_id: plan.id, cpf_cnpj: cpfDigits }),
+        body: JSON.stringify({ plan_id: plan.id, cpf_cnpj: cpfDigits, billing_cycle: billingCycle }),
       });
 
       const json = (await res.json().catch(() => null)) as (PixCheckout & { error?: string; detail?: string }) | null;
@@ -277,6 +280,7 @@ const FinanceiroPlanosPage = () => {
   const openCheckout = async (plan: PlanRow) => {
     if (!supabase) return;
     setCheckoutPlan(plan);
+    setCheckoutCycle("month");
     setCheckout(null);
     setCheckoutQr(null);
     setCheckoutStatus(null);
@@ -302,15 +306,9 @@ const FinanceiroPlanosPage = () => {
       return;
     }
 
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const metaCpf = (sessionData.session?.user.user_metadata?.cpf as string | undefined) ?? "";
-      if (metaCpf) setCpfCnpj(formatCpfCnpj(metaCpf));
-      const cpfDigits = (cpfCnpj || metaCpf).replace(/\D/g, "");
-      await createPixCheckout(plan, cpfDigits.length === 11 || cpfDigits.length === 14 ? cpfDigits : null);
-    } catch {
-      await createPixCheckout(plan, null);
-    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const metaCpf = (sessionData.session?.user.user_metadata?.cpf as string | undefined) ?? "";
+    if (metaCpf) setCpfCnpj(formatCpfCnpj(metaCpf));
   };
 
   useEffect(() => {
@@ -355,6 +353,28 @@ const FinanceiroPlanosPage = () => {
       toast({ title: "Não foi possível copiar" });
     }
   };
+
+  const checkoutMonthlyAmountCents = useMemo(() => (checkoutPlan?.price_cents ?? 0), [checkoutPlan?.price_cents]);
+
+  const checkoutAnnualAmountCents = useMemo(() => {
+    if (!checkoutPlan) return 0;
+    if (checkoutPlan.price_cents === 0) return 0;
+    const percent = Math.max(0, Math.min(100, Number(checkoutPlan.annual_discount_percent ?? 0)));
+    const base = checkoutPlan.price_cents * 12;
+    return Math.round((base * (100 - percent)) / 100);
+  }, [checkoutPlan]);
+
+  const checkoutAmountCents = useMemo(
+    () => (checkoutCycle === "year" ? checkoutAnnualAmountCents : checkoutMonthlyAmountCents),
+    [checkoutAnnualAmountCents, checkoutCycle, checkoutMonthlyAmountCents],
+  );
+
+  const checkoutPriceLabel = useMemo(() => {
+    if (!checkoutPlan) return "—";
+    if (checkoutPlan.price_cents === 0) return "R$ 0";
+    const suffix = checkoutCycle === "year" ? "/ano" : "/mês";
+    return `${formatMoney(checkoutAmountCents, checkoutPlan.currency)}${suffix}`;
+  }, [checkoutAmountCents, checkoutCycle, checkoutPlan]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -472,15 +492,57 @@ const FinanceiroPlanosPage = () => {
           <DialogHeader>
             <DialogTitle>Pagamento via PIX</DialogTitle>
             <DialogDescription>
-              {checkoutPlan
-                ? `Plano: ${checkoutPlan.name} · ${checkoutPlan.price_cents === 0 ? "R$ 0" : formatMoney(checkoutPlan.price_cents, checkoutPlan.currency)}`
-                : "—"}
+              {checkoutPlan ? `Plano: ${checkoutPlan.name} · ${checkoutPriceLabel}` : "—"}
             </DialogDescription>
           </DialogHeader>
 
           {checkoutError ? (
             <div className="rounded-3xl border-2 border-destructive/40 bg-destructive/5 p-4 font-body text-sm text-destructive/90">
               {checkoutError}
+            </div>
+          ) : null}
+
+          {!checkout && checkoutPlan?.price_cents ? (
+            <div className="grid gap-3 rounded-3xl border-2 border-border bg-background p-4">
+              <div className="font-body text-sm font-semibold text-foreground">Tipo de assinatura</div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setCheckoutCycle("month")}
+                  className={`rounded-2xl border-2 px-4 py-3 text-left transition-all ${
+                    checkoutCycle === "month" ? "border-primary bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <div className="font-display text-sm font-bold text-foreground">Mensal</div>
+                  <div className="mt-1 font-body text-xs text-muted-foreground">{formatMoney(checkoutMonthlyAmountCents, checkoutPlan.currency)}/mês</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutCycle("year")}
+                  className={`rounded-2xl border-2 px-4 py-3 text-left transition-all ${
+                    checkoutCycle === "year" ? "border-primary bg-primary/5" : "border-border bg-card"
+                  }`}
+                >
+                  <div className="font-display text-sm font-bold text-foreground">Anual</div>
+                  <div className="mt-1 font-body text-xs text-muted-foreground">{formatMoney(checkoutAnnualAmountCents, checkoutPlan.currency)}/ano</div>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {!checkout && checkoutPlan?.price_cents && !cpfCnpjRequired ? (
+            <div className="flex items-center justify-end">
+              <Button
+                variant="hero"
+                disabled={isCheckingOut || !checkoutPlan}
+                onClick={() => {
+                  if (!checkoutPlan) return;
+                  const digits = cpfCnpj.replace(/\D/g, "");
+                  void createPixCheckout(checkoutPlan, digits.length === 11 || digits.length === 14 ? digits : null, checkoutCycle);
+                }}
+              >
+                Gerar PIX
+              </Button>
             </div>
           ) : null}
 
@@ -504,7 +566,7 @@ const FinanceiroPlanosPage = () => {
                   onClick={() => {
                     if (!checkoutPlan) return;
                     const digits = cpfCnpj.replace(/\D/g, "");
-                    void createPixCheckout(checkoutPlan, digits.length === 11 || digits.length === 14 ? digits : null);
+                    void createPixCheckout(checkoutPlan, digits.length === 11 || digits.length === 14 ? digits : null, checkoutCycle);
                   }}
                 >
                   Gerar PIX

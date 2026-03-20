@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 type CreateCheckoutBody = {
   plan_id?: string;
   cpf_cnpj?: string;
+  billing_cycle?: "month" | "year";
 };
 
 type PlanRow = {
@@ -12,6 +13,7 @@ type PlanRow = {
   price_cents: number;
   currency: string;
   interval: "month" | "year";
+  annual_discount_percent: number;
 };
 
 type AsaasCustomerResponse = { id: string };
@@ -79,6 +81,11 @@ const normalizeCpfCnpj = (value: string | null | undefined) => {
   return null;
 };
 
+const normalizeBillingCycle = (value: unknown): "month" | "year" => {
+  if (value === "year") return "year";
+  return "month";
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   try {
@@ -96,6 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const body = (req.body ?? {}) as CreateCheckoutBody;
     const planId = body.plan_id;
     if (!planId) return res.status(400).json({ error: "plan_id required" });
+    const billingCycle = normalizeBillingCycle(body.billing_cycle);
 
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false } });
 
@@ -113,13 +121,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const fullName = (userData.user.user_metadata?.full_name as string | undefined) ?? null;
     const userCpf = (userData.user.user_metadata?.cpf as string | undefined) ?? null;
 
-    const { data: planData, error: planError } = await adminClient
+    const planResult = await adminClient
       .from("plans")
-      .select("id, name, price_cents, currency, interval")
+      .select("id, name, price_cents, currency, interval, annual_discount_percent")
       .eq("id", planId)
       .maybeSingle();
 
-    if (planError) return res.status(400).json({ error: planError.message });
+    let planData = planResult.data as unknown;
+    if (planResult.error && planResult.error.message.toLowerCase().includes("annual_discount_percent")) {
+      const fallback = await adminClient.from("plans").select("id, name, price_cents, currency, interval").eq("id", planId).maybeSingle();
+      if (fallback.error) return res.status(400).json({ error: fallback.error.message });
+      planData = (fallback.data ? { ...(fallback.data as Record<string, unknown>), annual_discount_percent: 0 } : null) as unknown;
+    } else if (planResult.error) {
+      return res.status(400).json({ error: planResult.error.message });
+    }
+
     if (!planData) return res.status(404).json({ error: "plan not found" });
 
     const plan = planData as PlanRow;
@@ -177,8 +193,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    const amountCents = (() => {
+      if (billingCycle === "month") return plan.price_cents;
+      if (plan.interval === "year") return plan.price_cents;
+      const percent = Math.max(0, Math.min(100, Number(plan.annual_discount_percent ?? 0)));
+      const base = plan.price_cents * 12;
+      return Math.round((base * (100 - percent)) / 100);
+    })();
+
+    const cycleDays = billingCycle === "year" ? 365 : 30;
     const dueDate = formatDueDate(new Date());
-    const value = Number((plan.price_cents / 100).toFixed(2));
+    const value = Number((amountCents / 100).toFixed(2));
 
     const createdPayment = await asaasRequest<AsaasPaymentResponse>(asaasBaseUrl, asaasApiKey, "/payments", {
       method: "POST",
@@ -187,8 +212,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         billingType: "PIX",
         value,
         dueDate,
-        description: `Assinatura ${plan.name}`,
-        externalReference: `${userId}:${plan.id}`,
+        description: `Assinatura ${plan.name} (${billingCycle === "year" ? "Anual" : "Mensal"})`,
+        externalReference: `${userId}:${plan.id}:${billingCycle}`,
       }),
     });
 
@@ -197,55 +222,89 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const expiresAt = pixQr.expirationDate ? new Date(pixQr.expirationDate).toISOString() : null;
-    const billingDueAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const billingDueAt = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: invoiceInsert, error: invoiceError } = await adminClient
+    const invoiceInsertBase = {
+      user_id: userId,
+      status: "pending",
+      amount_cents: amountCents,
+      currency: plan.currency,
+      due_date: billingDueAt,
+      paid_at: null,
+      provider: "asaas",
+      provider_payment_id: createdPayment.id,
+      created_at: new Date().toISOString(),
+    } as Record<string, unknown>;
+
+    let invoiceInsert:
+      | {
+          id: string;
+        }
+      | null = null;
+
+    const invoiceAttempt = await adminClient
       .from("invoices")
-      .insert({
-        user_id: userId,
-        status: "pending",
-        amount_cents: plan.price_cents,
-        currency: plan.currency,
-        due_date: billingDueAt,
-        paid_at: null,
-        provider: "asaas",
-        provider_payment_id: createdPayment.id,
-        created_at: new Date().toISOString(),
-      })
+      .insert({ ...invoiceInsertBase, billing_cycle: billingCycle })
       .select("id")
       .maybeSingle();
 
-    if (invoiceError) return res.status(400).json({ error: invoiceError.message });
+    if (invoiceAttempt.error && invoiceAttempt.error.message.toLowerCase().includes("billing_cycle")) {
+      const fallback = await adminClient.from("invoices").insert(invoiceInsertBase).select("id").maybeSingle();
+      if (fallback.error) return res.status(400).json({ error: fallback.error.message });
+      invoiceInsert = fallback.data as { id: string } | null;
+    } else {
+      if (invoiceAttempt.error) return res.status(400).json({ error: invoiceAttempt.error.message });
+      invoiceInsert = invoiceAttempt.data as { id: string } | null;
+    }
+
     const invoiceId = (invoiceInsert as { id: string } | null)?.id;
     if (!invoiceId) return res.status(500).json({ error: "invoice not created" });
 
-    const { data: paymentInsert, error: paymentError } = await adminClient
+    const pixInsertBase = {
+      user_id: userId,
+      plan_id: plan.id,
+      invoice_id: invoiceId,
+      status: "pending",
+      provider: "asaas",
+      provider_payment_id: createdPayment.id,
+      pix_payload: pixQr.payload,
+      qr_code_base64: pixQr.encodedImage,
+      expires_at: expiresAt,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as Record<string, unknown>;
+
+    const pixAttempt = await adminClient
       .from("pix_payments")
-      .insert({
-        user_id: userId,
-        plan_id: plan.id,
-        invoice_id: invoiceId,
-        status: "pending",
-        provider: "asaas",
-        provider_payment_id: createdPayment.id,
-        pix_payload: pixQr.payload,
-        qr_code_base64: pixQr.encodedImage,
-        expires_at: expiresAt,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .insert({ ...pixInsertBase, billing_cycle: billingCycle })
       .select("id")
       .maybeSingle();
 
-    if (paymentError) return res.status(400).json({ error: paymentError.message });
+    if (pixAttempt.error && pixAttempt.error.message.toLowerCase().includes("billing_cycle")) {
+      const fallback = await adminClient.from("pix_payments").insert(pixInsertBase).select("id").maybeSingle();
+      if (fallback.error) return res.status(400).json({ error: fallback.error.message });
+      const paymentId = (fallback.data as { id: string } | null)?.id;
+      if (!paymentId) return res.status(500).json({ error: "pix payment not created" });
+      return res.status(200).json({
+        payment_id: paymentId,
+        invoice_id: invoiceId,
+        amount_cents: amountCents,
+        currency: plan.currency,
+        pix_payload: pixQr.payload,
+        qr_code_base64: pixQr.encodedImage,
+        expires_at: expiresAt,
+        provider_payment_id: createdPayment.id,
+      });
+    }
 
-    const paymentId = (paymentInsert as { id: string } | null)?.id;
+    if (pixAttempt.error) return res.status(400).json({ error: pixAttempt.error.message });
+    const paymentId = (pixAttempt.data as { id: string } | null)?.id;
     if (!paymentId) return res.status(500).json({ error: "pix payment not created" });
 
     return res.status(200).json({
       payment_id: paymentId,
       invoice_id: invoiceId,
-      amount_cents: plan.price_cents,
+      amount_cents: amountCents,
       currency: plan.currency,
       pix_payload: pixQr.payload,
       qr_code_base64: pixQr.encodedImage,

@@ -28,6 +28,19 @@ const formatMoney = (amountCents: number, currency: string) => {
   }
 };
 
+const maskCurrencyFromCents = (cents: number, currency: string) => formatMoney(Number.isFinite(cents) ? cents : 0, currency);
+
+const parseCurrencyToCents = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  return digits ? Number(digits) : 0;
+};
+
+const parsePercent = (value: string) => {
+  const normalized = value.replace(",", ".").trim();
+  const n = Number.parseFloat(normalized);
+  return Number.isFinite(n) ? n : 0;
+};
+
 const AdminPlanosPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -36,6 +49,7 @@ const AdminPlanosPage = () => {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPriceCents, setEditPriceCents] = useState<number>(0);
+  const [editPriceMasked, setEditPriceMasked] = useState("");
   const [editCurrency, setEditCurrency] = useState("BRL");
   const [editInterval, setEditInterval] = useState<Plan["interval"]>("month");
   const [editAnnualDiscountPercent, setEditAnnualDiscountPercent] = useState<number>(0);
@@ -104,8 +118,10 @@ const AdminPlanosPage = () => {
   const openEdit = (plan: Plan) => {
     setSelectedPlanId(plan.id);
     setEditName(plan.name ?? "");
-    setEditPriceCents(plan.price_cents ?? 0);
     setEditCurrency(plan.currency ?? "BRL");
+    const cents = plan.price_cents ?? 0;
+    setEditPriceCents(cents);
+    setEditPriceMasked(maskCurrencyFromCents(cents, plan.currency ?? "BRL"));
     setEditInterval(plan.interval ?? "month");
     setEditAnnualDiscountPercent(plan.annual_discount_percent ?? 0);
     setEditIsActive(plan.is_active ?? true);
@@ -113,6 +129,11 @@ const AdminPlanosPage = () => {
     setEditMaxUsers(plan.max_users ?? "none");
     setEditOpen(true);
   };
+
+  useEffect(() => {
+    if (!editOpen) return;
+    setEditPriceMasked(maskCurrencyFromCents(editPriceCents, editCurrency));
+  }, [editCurrency, editOpen, editPriceCents]);
 
   const savePlan = async () => {
     if (!supabase || !selectedPlanId) return;
@@ -277,10 +298,15 @@ const AdminPlanosPage = () => {
               <div>
                 <label className="mb-1 block font-body text-sm font-semibold text-foreground">Preço (centavos)</label>
                 <input
-                  type="number"
-                  value={editPriceCents}
-                  onChange={(e) => setEditPriceCents(Number(e.target.value))}
+                  value={editPriceMasked}
+                  onChange={(e) => {
+                    const cents = parseCurrencyToCents(e.target.value);
+                    setEditPriceCents(cents);
+                    setEditPriceMasked(maskCurrencyFromCents(cents, editCurrency));
+                  }}
+                  inputMode="numeric"
                   className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                  placeholder="R$ 0,00"
                 />
               </div>
               <div>
@@ -310,12 +336,31 @@ const AdminPlanosPage = () => {
               <input
                 type="number"
                 value={editAnnualDiscountPercent}
-                onChange={(e) => setEditAnnualDiscountPercent(Number(e.target.value))}
+                onChange={(e) => setEditAnnualDiscountPercent(parsePercent(e.target.value))}
                 min={0}
                 max={100}
                 className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
                 placeholder="0"
               />
+              {editPriceCents > 0 && editInterval === "month" ? (
+                <div className="mt-2 rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-sm text-muted-foreground">
+                  <div className="flex items-center justify-between gap-4">
+                    <span>Anual sem desconto</span>
+                    <span className="font-mono font-semibold tabular-nums text-foreground">
+                      {formatMoney(editPriceCents * 12, editCurrency)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-4">
+                    <span>Anual com desconto</span>
+                    <span className="font-mono font-semibold tabular-nums text-foreground">
+                      {formatMoney(
+                        Math.round((editPriceCents * 12 * (100 - Math.max(0, Math.min(100, editAnnualDiscountPercent)))) / 100),
+                        editCurrency,
+                      )}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div>
