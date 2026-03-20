@@ -83,11 +83,27 @@ const Navbar = () => {
 
   const isLoggedIn = Boolean(userName);
   const dashboard = selectedModule ? getDashboardForModule(selectedModule) : null;
+  const handleBrandClick = () => {
+    setMenuOpen(false);
+    if (!isLoggedIn) {
+      navigate("/");
+      return;
+    }
+    if (isSuperAdmin) {
+      navigate("/admin");
+      return;
+    }
+    if (dashboard) {
+      navigate(dashboard.path);
+      return;
+    }
+    navigate("/modulos");
+  };
 
   return (
     <nav className="sticky top-0 z-50 border-b-2 border-border bg-card/95 backdrop-blur-md">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        <button onClick={() => navigate("/")} className="flex items-center gap-2">
+        <button onClick={handleBrandClick} className="flex items-center gap-2">
           <span className="text-2xl">🗣️</span>
           <span className="font-display text-2xl font-bold text-primary">Fluenteria</span>
         </button>

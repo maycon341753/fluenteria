@@ -2,6 +2,7 @@ import Footer from "@/components/landing/Footer";
 import Navbar from "@/components/landing/Navbar";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
+import { FileDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -57,6 +58,16 @@ const addDaysIso = (value: string, days: number) => {
 
 const getCycleDays = (cycle: Invoice["billing_cycle"]) => (cycle === "year" ? 365 : 30);
 
+const getCycleLabel = (cycle: Invoice["billing_cycle"]) => (cycle === "year" ? "Anual" : "Mensal");
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
 const FinanceiroPage = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +76,8 @@ const FinanceiroPage = () => {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
+  const [userDisplayName, setUserDisplayName] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -85,6 +98,8 @@ const FinanceiroPage = () => {
         navigate("/");
         return;
       }
+      setUserDisplayName((sessionData.session.user.user_metadata?.full_name as string | undefined) ?? null);
+      setUserEmail(sessionData.session.user.email ?? null);
       setUserCreatedAt((sessionData.session.user.created_at as string | undefined) ?? null);
 
       const { data: subData, error: subError } = await supabase
@@ -186,6 +201,104 @@ const FinanceiroPage = () => {
     if (latestPaid) return addDaysIso(latestPaid.paid_at ?? latestPaid.created_at, getCycleDays(latestPaid.billing_cycle));
     return subscription?.current_period_end ?? null;
   }, [freeEndIso, isFreePlan, latestPaid, latestPending, subscription?.current_period_end, subscription?.plan_id]);
+
+  const openReceipt = (inv: Invoice) => {
+    if (inv.status !== "paid") return;
+
+    const title = "Comprovante de pagamento";
+    const paidAt = formatDate(inv.paid_at ?? inv.created_at);
+    const createdAt = formatDate(inv.created_at);
+    const amount = formatMoney(inv.amount_cents, inv.currency);
+    const cycle = getCycleLabel(inv.billing_cycle);
+    const client = escapeHtml(userDisplayName ?? userEmail ?? "—");
+    const planName = escapeHtml(plan?.name ?? "—");
+    const invoiceId = escapeHtml(inv.id);
+
+    const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${title}</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 24px; color: #0f172a; }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    .card { border: 2px solid #e2e8f0; border-radius: 16px; padding: 20px; }
+    .row { display: flex; justify-content: space-between; gap: 16px; }
+    .title { font-size: 22px; font-weight: 900; margin: 0; }
+    .muted { color: #64748b; font-size: 13px; margin-top: 6px; }
+    .divider { height: 1px; background: #e2e8f0; margin: 16px 0; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .label { color: #64748b; font-size: 12px; margin: 0 0 2px; }
+    .value { font-weight: 700; margin: 0; }
+    .amount { font-size: 24px; font-weight: 900; }
+    .badge { display: inline-block; background: #dcfce7; color: #166534; border: 1px solid #86efac; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+    @media print { body { padding: 0; } .card { border: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div>
+          <p class="title">${title}</p>
+          <div class="muted">Fluenteria · CNPJ: 39.433.448/0001-34</div>
+        </div>
+        <div class="badge">Pago</div>
+      </div>
+      <div class="divider"></div>
+      <div class="grid">
+        <div>
+          <p class="label">Cliente</p>
+          <p class="value">${client}</p>
+        </div>
+        <div>
+          <p class="label">Plano</p>
+          <p class="value">${planName}</p>
+        </div>
+        <div>
+          <p class="label">Ciclo</p>
+          <p class="value">${cycle}</p>
+        </div>
+        <div>
+          <p class="label">Valor</p>
+          <p class="value amount">${amount}</p>
+        </div>
+        <div>
+          <p class="label">Pago em</p>
+          <p class="value">${paidAt}</p>
+        </div>
+        <div>
+          <p class="label">Criada em</p>
+          <p class="value">${createdAt}</p>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <p class="label">Fatura</p>
+          <p class="value">${invoiceId}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.addEventListener('load', () => { window.print(); });
+  </script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, "_blank");
+    if (!w) {
+      window.location.assign(url);
+    } else {
+      try {
+        w.opener = null;
+      } catch {
+        // ignore
+      }
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -318,7 +431,12 @@ const FinanceiroPage = () => {
                               <p className="mt-1 font-body text-xs text-muted-foreground">Criada em: {formatDate(inv.created_at)}</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-display text-lg font-bold text-foreground">{formatMoney(inv.amount_cents, inv.currency)}</p>
+                              <div className="flex items-center justify-end gap-2">
+                                <p className="font-display text-lg font-bold text-foreground">{formatMoney(inv.amount_cents, inv.currency)}</p>
+                                <Button variant="outline" size="sm" onClick={() => openReceipt(inv)} aria-label="Gerar comprovante">
+                                  <FileDown className="h-4 w-4" />
+                                </Button>
+                              </div>
                               <p className="mt-1 font-body text-xs text-muted-foreground">Paga</p>
                             </div>
                           </div>
