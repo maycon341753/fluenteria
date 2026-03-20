@@ -197,6 +197,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const expiresAt = pixQr.expirationDate ? new Date(pixQr.expirationDate).toISOString() : null;
+    const billingDueAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const { data: invoiceInsert, error: invoiceError } = await adminClient
       .from("invoices")
@@ -205,7 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         status: "pending",
         amount_cents: plan.price_cents,
         currency: plan.currency,
-        due_date: expiresAt,
+        due_date: billingDueAt,
         paid_at: null,
         provider: "asaas",
         provider_payment_id: createdPayment.id,

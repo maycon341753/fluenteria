@@ -47,6 +47,7 @@ const VideoAulasPage = () => {
   const [planId, setPlanId] = useState<string | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
   const [planStatus, setPlanStatus] = useState<SubscriptionStatus | null>(null);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
   const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
   const [isPlanLoading, setIsPlanLoading] = useState(true);
 
@@ -61,13 +62,29 @@ const VideoAulasPage = () => {
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
 
   const levels = useMemo(() => [1, 2, 3], []);
+  const moduleLocked = useMemo(() => {
+    const qModule = (params.get("module") ?? "") as ModuleKey;
+    return qModule === "crianca" || qModule === "adolescente" || qModule === "adulto";
+  }, [params]);
+
+  const isPaidAccess = useMemo(() => {
+    if (!planId || !planStatus) return false;
+    if (planStatus !== "active" && planStatus !== "trialing") return false;
+    if (!currentPeriodEnd) return false;
+    const end = new Date(currentPeriodEnd).getTime();
+    return Number.isFinite(end) && end > Date.now();
+  }, [currentPeriodEnd, planId, planStatus]);
+
+  const isSubscriptionExpired = useMemo(() => {
+    if (!planId || !currentPeriodEnd) return false;
+    const end = new Date(currentPeriodEnd).getTime();
+    return Number.isFinite(end) && end <= Date.now();
+  }, [currentPeriodEnd, planId]);
 
   const isFreePlan = useMemo(() => {
-    if (!planName && !planId) return false;
-    if (planName?.toLowerCase() === "gratuito") return true;
     if (!planId) return true;
-    return false;
-  }, [planId, planName]);
+    return !isPaidAccess;
+  }, [isPaidAccess, planId]);
 
   const freeDaysLeft = useMemo(() => {
     if (!isFreePlan) return null;
@@ -107,7 +124,7 @@ const VideoAulasPage = () => {
       if (freeExpired) {
         setVideos([]);
         setIsLoading(false);
-        setErrorMessage("Seu período gratuito expirou. Assine um plano para continuar.");
+        setErrorMessage(isSubscriptionExpired ? "Sua assinatura expirou. Assine um plano para continuar." : "Seu período gratuito expirou. Assine um plano para continuar.");
         return;
       }
       if (l !== 1) {
@@ -165,7 +182,7 @@ const VideoAulasPage = () => {
 
       const { data: subData, error: subError } = await supabase
         .from("user_subscriptions")
-        .select("plan_id, status")
+        .select("plan_id, status, current_period_end")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -175,10 +192,13 @@ const VideoAulasPage = () => {
         setPlanName("Gratuito");
         setPlanStatus(null);
         setPlanId(null);
+        setCurrentPeriodEnd(null);
       } else {
         const status = subData?.status as SubscriptionStatus | undefined;
         const userPlanId = (subData?.plan_id as string | null | undefined) ?? null;
+        const periodEnd = (subData?.current_period_end as string | null | undefined) ?? null;
         setPlanId(userPlanId);
+        setCurrentPeriodEnd(periodEnd);
 
         if (status && (status === "active" || status === "trialing") && userPlanId) {
           const { data: planData, error: planError } = await supabase
@@ -279,12 +299,22 @@ const VideoAulasPage = () => {
                 <label className="mb-1 block font-body text-sm font-semibold text-foreground">Módulo</label>
                 <select
                   value={module}
-                  onChange={(e) => setModule(e.target.value as ModuleKey)}
+                  onChange={(e) => {
+                    if (moduleLocked) return;
+                    setModule(e.target.value as ModuleKey);
+                  }}
                   className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                  disabled={moduleLocked}
                 >
-                  <option value="crianca">Criança</option>
-                  <option value="adolescente">Adolescente</option>
-                  <option value="adulto">Adulto</option>
+                  {moduleLocked ? (
+                    <option value={module}>{formatModuleLabel(module)}</option>
+                  ) : (
+                    <>
+                      <option value="crianca">Criança</option>
+                      <option value="adolescente">Adolescente</option>
+                      <option value="adulto">Adulto</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div>

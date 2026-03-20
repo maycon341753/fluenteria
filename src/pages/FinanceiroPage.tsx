@@ -47,6 +47,13 @@ const formatDate = (value: string | null) => {
   return new Intl.DateTimeFormat("pt-BR").format(date);
 };
 
+const addDaysIso = (value: string, days: number) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+};
+
 const FinanceiroPage = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -54,6 +61,7 @@ const FinanceiroPage = () => {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -74,6 +82,7 @@ const FinanceiroPage = () => {
         navigate("/");
         return;
       }
+      setUserCreatedAt((sessionData.session.user.created_at as string | undefined) ?? null);
 
       const { data: subData, error: subError } = await supabase
         .from("user_subscriptions")
@@ -139,14 +148,41 @@ const FinanceiroPage = () => {
   const pendingInvoices = useMemo(() => invoices.filter((i) => i.status === "pending"), [invoices]);
   const paidInvoices = useMemo(() => invoices.filter((i) => i.status === "paid"), [invoices]);
 
-  const nextPending = useMemo(() => {
-    const sorted = [...pendingInvoices].sort((a, b) => {
-      const da = a.due_date ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER;
-      const db = b.due_date ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER;
-      return da - db;
+  const latestPending = useMemo(() => pendingInvoices[0] ?? null, [pendingInvoices]);
+
+  const latestPaid = useMemo(() => {
+    const sorted = [...paidInvoices].sort((a, b) => {
+      const da = new Date(a.paid_at ?? a.created_at).getTime();
+      const db = new Date(b.paid_at ?? b.created_at).getTime();
+      return db - da;
     });
     return sorted[0] ?? null;
-  }, [pendingInvoices]);
+  }, [paidInvoices]);
+
+  const isFreePlan = useMemo(() => Boolean(plan && (plan.price_cents === 0 || plan.name.trim().toLowerCase() === "gratuito")), [plan]);
+
+  const freeEndIso = useMemo(() => {
+    if (!isFreePlan) return null;
+    if (!userCreatedAt) return null;
+    return addDaysIso(userCreatedAt, 10);
+  }, [isFreePlan, userCreatedAt]);
+
+  const freeDaysLeft = useMemo(() => {
+    if (!freeEndIso) return null;
+    const end = new Date(freeEndIso).getTime();
+    if (!Number.isFinite(end)) return null;
+    const diff = end - Date.now();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }, [freeEndIso]);
+
+  const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft <= 0 : false), [freeDaysLeft]);
+
+  const nextDueIso = useMemo(() => {
+    if (subscription?.plan_id && isFreePlan) return freeEndIso;
+    if (latestPending) return addDaysIso(latestPending.created_at, 30);
+    if (latestPaid) return addDaysIso(latestPaid.paid_at ?? latestPaid.created_at, 30);
+    return subscription?.current_period_end ?? null;
+  }, [freeEndIso, isFreePlan, latestPaid, latestPending, subscription?.current_period_end, subscription?.plan_id]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -194,10 +230,19 @@ const FinanceiroPage = () => {
                         {plan ? `${formatMoney(plan.price_cents, plan.currency)}/${plan.interval === "year" ? "ano" : "mês"}` : "—"}
                       </p>
                     </div>
-                    <div className="rounded-2xl border-2 border-border bg-background p-4">
-                      <p className="font-body text-sm text-muted-foreground">Renovação</p>
-                      <p className="mt-1 font-display text-lg font-bold text-foreground">{formatDate(subscription?.current_period_end ?? null)}</p>
-                    </div>
+                    {subscription?.plan_id ? (
+                      <div className="rounded-2xl border-2 border-border bg-background p-4">
+                        <p className="font-body text-sm text-muted-foreground">Renovação</p>
+                        <p className="mt-1 font-display text-lg font-bold text-foreground">{formatDate(nextDueIso)}</p>
+                        {isFreePlan && freeDaysLeft !== null ? (
+                          <p className="mt-1 font-body text-xs text-muted-foreground">
+                            {freeExpired
+                              ? "Período gratuito expirado. Assine um plano para continuar."
+                              : `Acesso gratuito restante: ${freeDaysLeft} dias`}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row">
                     <Button variant="default" onClick={() => navigate("/financeiro/planos")}>
@@ -215,9 +260,9 @@ const FinanceiroPage = () => {
                     <div className="rounded-2xl border-2 border-border bg-background p-4">
                       <p className="font-body text-sm text-muted-foreground">Pendentes</p>
                       <p className="mt-1 font-display text-2xl font-bold text-foreground">{pendingInvoices.length}</p>
-                      {nextPending ? (
+                      {nextDueIso ? (
                         <p className="mt-1 font-body text-xs text-muted-foreground">
-                          Próximo vencimento: {formatDate(nextPending.due_date)}
+                          Próximo vencimento: {formatDate(nextDueIso)}
                         </p>
                       ) : null}
                     </div>
@@ -238,7 +283,7 @@ const FinanceiroPage = () => {
                         <div key={inv.id} className="rounded-2xl border-2 border-border bg-background p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="font-body text-sm font-semibold text-foreground">Vencimento: {formatDate(inv.due_date)}</p>
+                              <p className="font-body text-sm font-semibold text-foreground">Vencimento: {formatDate(addDaysIso(inv.created_at, 30))}</p>
                               <p className="mt-1 font-body text-xs text-muted-foreground">Criada em: {formatDate(inv.created_at)}</p>
                             </div>
                             <div className="text-right">

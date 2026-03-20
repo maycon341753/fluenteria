@@ -30,6 +30,12 @@ const formatSubscriptionStatus = (status: SubscriptionStatus) => {
   return "Cancelado";
 };
 
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(date);
+};
+
 const ModuleSelectPage = () => {
   const navigate = useNavigate();
   const modules = useMemo<LearningModule[]>(
@@ -84,6 +90,7 @@ const ModuleSelectPage = () => {
   const [planStatus, setPlanStatus] = useState<SubscriptionStatus | null>(null);
   const [planInfoError, setPlanInfoError] = useState<string | null>(null);
   const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -109,7 +116,7 @@ const ModuleSelectPage = () => {
 
       const { data: subData, error: subError } = await supabase
         .from("user_subscriptions")
-        .select("plan_id, status")
+        .select("plan_id, status, current_period_end")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -120,7 +127,9 @@ const ModuleSelectPage = () => {
       } else {
         const status = subData?.status as SubscriptionStatus | undefined;
         const userPlanId = (subData?.plan_id as string | null | undefined) ?? null;
+        const periodEnd = (subData?.current_period_end as string | null | undefined) ?? null;
         setPlanId(userPlanId);
+        setCurrentPeriodEnd(periodEnd);
 
         if (status && (status === "active" || status === "trialing") && userPlanId) {
           const { data: planData, error: planError } = await supabase
@@ -166,12 +175,24 @@ const ModuleSelectPage = () => {
     };
   }, [navigate]);
 
+  const isPaidAccess = useMemo(() => {
+    if (!planId || !planStatus) return false;
+    if (planStatus !== "active" && planStatus !== "trialing") return false;
+    if (!currentPeriodEnd) return false;
+    const end = new Date(currentPeriodEnd).getTime();
+    return Number.isFinite(end) && end > Date.now();
+  }, [currentPeriodEnd, planId, planStatus]);
+
+  const isSubscriptionExpired = useMemo(() => {
+    if (!planId || !currentPeriodEnd) return false;
+    const end = new Date(currentPeriodEnd).getTime();
+    return Number.isFinite(end) && end <= Date.now();
+  }, [currentPeriodEnd, planId]);
+
   const isFreePlan = useMemo(() => {
-    if (!planName) return false;
-    if (planName.toLowerCase() === "gratuito") return true;
     if (!planId) return true;
-    return false;
-  }, [planId, planName]);
+    return !isPaidAccess;
+  }, [isPaidAccess, planId]);
 
   const freeDaysLeft = useMemo(() => {
     if (!isFreePlan) return null;
@@ -205,8 +226,8 @@ const ModuleSelectPage = () => {
 
     if (isFreePlan) {
       if (freeExpired) {
-        setErrorMessage("Seu período gratuito expirou. Assine um plano para continuar.");
-        navigate("/pricing");
+        setErrorMessage(isSubscriptionExpired ? "Sua assinatura expirou. Assine um plano para continuar." : "Seu período gratuito expirou. Assine um plano para continuar.");
+        navigate("/financeiro/planos");
         return;
       }
       if (selectedLevel !== 1) {
@@ -255,8 +276,8 @@ const ModuleSelectPage = () => {
 
     if (isFreePlan) {
       if (freeExpired) {
-        setErrorMessage("Seu período gratuito expirou. Assine um plano para continuar.");
-        navigate("/pricing");
+        setErrorMessage(isSubscriptionExpired ? "Sua assinatura expirou. Assine um plano para continuar." : "Seu período gratuito expirou. Assine um plano para continuar.");
+        navigate("/financeiro/planos");
         return;
       }
       if (selectedLevel !== 1) {
@@ -285,13 +306,20 @@ const ModuleSelectPage = () => {
               <div className="font-body text-xs text-muted-foreground">Plano</div>
               <div className="mt-1 flex items-center gap-2">
                 <span className="font-display text-sm font-bold text-foreground">{planName ?? "—"}</span>
-                {!isFreePlan && planStatus ? (
+                {isSubscriptionExpired ? (
+                  <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-body text-xs font-semibold text-destructive">
+                    Expirado
+                  </span>
+                ) : !isFreePlan && planStatus ? (
                   <span className="rounded-full bg-success/20 px-2 py-0.5 font-body text-xs font-semibold text-success">
                     {formatSubscriptionStatus(planStatus)}
                   </span>
                 ) : null}
               </div>
               {planInfoError ? <div className="mt-1 font-body text-xs text-muted-foreground">Plano indisponível</div> : null}
+              {!isFreePlan && currentPeriodEnd ? (
+                <div className="mt-1 font-body text-xs text-muted-foreground">Válido até: {formatDate(currentPeriodEnd)}</div>
+              ) : null}
               {isFreePlan && freeDaysLeft !== null ? (
                 <div className="mt-1 font-body text-xs text-muted-foreground">
                   {freeDaysLeft >= 0 ? `Acesso do plano gratuito: ${freeDaysLeft} dias` : "Acesso do plano gratuito expirado"}

@@ -166,7 +166,7 @@ const LoginPage = () => {
 
               setIsSubmitting(true);
               try {
-                const { error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabase.auth.signInWithPassword({
                   email,
                   password,
                 });
@@ -176,13 +176,8 @@ const LoginPage = () => {
                   return;
                 }
 
-                const { data } = await supabase.auth.getSession();
-                const userId = data.session?.user.id;
-                if (!userId) {
-                  navigate("/modulos");
-                  return;
-                }
-
+                const userId = data.user?.id ?? null;
+                if (!userId) return;
                 const path = await resolvePostLoginRedirect(userId);
                 navigate(path, { replace: true });
               } finally {

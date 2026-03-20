@@ -11,24 +11,15 @@ const getDashboardPathForModule = (module: ModuleKey) => {
 export const resolvePostLoginRedirect = async (userId: string) => {
   if (!supabase) return "/";
 
-  const { data: roleData } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "super_admin")
-    .maybeSingle();
+  const [roleResult, moduleResult] = await Promise.all([
+    supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "super_admin").maybeSingle(),
+    supabase.from("user_learning_path").select("module").eq("user_id", userId).maybeSingle(),
+  ]);
 
-  if (roleData) return "/admin";
+  if (roleResult.data) return "/admin";
 
-  const { data: moduleData } = await supabase
-    .from("user_learning_path")
-    .select("module")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  const module = moduleData?.module as ModuleKey | undefined;
+  const module = moduleResult.data?.module as ModuleKey | undefined;
   if (module) return getDashboardPathForModule(module);
 
   return "/modulos";
 };
-
