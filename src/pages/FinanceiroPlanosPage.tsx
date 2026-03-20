@@ -34,6 +34,32 @@ type PixCheckout = {
 
 type PixPaymentStatus = "pending" | "paid" | "expired" | "canceled";
 
+const formatCpfCnpj = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  if (digits.length <= 11) {
+    const part1 = digits.slice(0, 3);
+    const part2 = digits.slice(3, 6);
+    const part3 = digits.slice(6, 9);
+    const part4 = digits.slice(9, 11);
+    let result = part1;
+    if (part2) result += `.${part2}`;
+    if (part3) result += `.${part3}`;
+    if (part4) result += `-${part4}`;
+    return result;
+  }
+  const p1 = digits.slice(0, 2);
+  const p2 = digits.slice(2, 5);
+  const p3 = digits.slice(5, 8);
+  const p4 = digits.slice(8, 12);
+  const p5 = digits.slice(12, 14);
+  let result = p1;
+  if (p2) result += `.${p2}`;
+  if (p3) result += `.${p3}`;
+  if (p4) result += `/${p4}`;
+  if (p5) result += `-${p5}`;
+  return result;
+};
+
 const formatMoney = (amountCents: number, currency: string) => {
   const amount = amountCents / 100;
   try {
@@ -103,6 +129,8 @@ const FinanceiroPlanosPage = () => {
   const [checkoutStatus, setCheckoutStatus] = useState<PixPaymentStatus | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [cpfCnpj, setCpfCnpj] = useState("");
+  const [cpfCnpjRequired, setCpfCnpjRequired] = useState(false);
 
   const load = async () => {
     if (!supabase) {
@@ -166,6 +194,58 @@ const FinanceiroPlanosPage = () => {
     });
   }, [plans]);
 
+  const createPixCheckout = async (plan: PlanRow, cpfDigits: string | null) => {
+    if (!supabase) return;
+    setIsCheckingOut(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        setCheckoutError("Sessão expirada. Faça login novamente.");
+        return;
+      }
+
+      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+      const res = await fetch(`${apiBase}/api/asaas/create-pix-checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ plan_id: plan.id, cpf_cnpj: cpfDigits }),
+      });
+
+      const json = (await res.json().catch(() => null)) as (PixCheckout & { error?: string; detail?: string }) | null;
+      if (!res.ok) {
+        const base = json?.error ?? "Falha ao gerar PIX.";
+        const detail = json?.detail ? ` (${json.detail})` : "";
+        const msg = `${base}${detail}`;
+        setCheckoutError(msg);
+        if (msg.toLowerCase().includes("cpf") || base === "cpf_required") {
+          setCpfCnpjRequired(true);
+        }
+        return;
+      }
+
+      const checkoutRow = json as PixCheckout | null;
+      if (!checkoutRow?.payment_id || !checkoutRow?.pix_payload) {
+        setCheckoutError("Resposta inválida do checkout PIX.");
+        return;
+      }
+
+      setCheckout(checkoutRow);
+      setCheckoutStatus("pending");
+      setCpfCnpjRequired(false);
+      if (checkoutRow.qr_code_base64) {
+        setCheckoutQr(`data:image/png;base64,${checkoutRow.qr_code_base64}`);
+      } else {
+        setCheckoutError("QR Code não disponível.");
+      }
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const openCheckout = async (plan: PlanRow) => {
     if (!supabase) return;
     setCheckoutPlan(plan);
@@ -173,6 +253,7 @@ const FinanceiroPlanosPage = () => {
     setCheckoutQr(null);
     setCheckoutStatus(null);
     setCheckoutError(null);
+    setCpfCnpjRequired(false);
     setCheckoutOpen(true);
 
     if (plan.price_cents === 0) {
@@ -193,48 +274,14 @@ const FinanceiroPlanosPage = () => {
       return;
     }
 
-    setIsCheckingOut(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) {
-        setCheckoutError("Sessão expirada. Faça login novamente.");
-        return;
-      }
-
-      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
-      const res = await fetch(`${apiBase}/api/asaas/create-pix-checkout`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ plan_id: plan.id }),
-      });
-
-      const json = (await res.json().catch(() => null)) as (PixCheckout & { error?: string; detail?: string }) | null;
-      if (!res.ok) {
-        const base = json?.error ?? "Falha ao gerar PIX.";
-        const detail = json?.detail ? ` (${json.detail})` : "";
-        setCheckoutError(`${base}${detail}`);
-        return;
-      }
-
-      const checkoutRow = json as PixCheckout | null;
-      if (!checkoutRow?.payment_id || !checkoutRow?.pix_payload) {
-        setCheckoutError("Resposta inválida do checkout PIX.");
-        return;
-      }
-
-      setCheckout(checkoutRow);
-      setCheckoutStatus("pending");
-      if (checkoutRow.qr_code_base64) {
-        setCheckoutQr(`data:image/png;base64,${checkoutRow.qr_code_base64}`);
-      } else {
-        setCheckoutError("QR Code não disponível.");
-      }
-    } finally {
-      setIsCheckingOut(false);
+      const metaCpf = (sessionData.session?.user.user_metadata?.cpf as string | undefined) ?? "";
+      if (metaCpf) setCpfCnpj(formatCpfCnpj(metaCpf));
+      const cpfDigits = (cpfCnpj || metaCpf).replace(/\D/g, "");
+      await createPixCheckout(plan, cpfDigits.length === 11 || cpfDigits.length === 14 ? cpfDigits : null);
+    } catch {
+      await createPixCheckout(plan, null);
     }
   };
 
@@ -395,6 +442,35 @@ const FinanceiroPlanosPage = () => {
           {checkoutError ? (
             <div className="rounded-3xl border-2 border-destructive/40 bg-destructive/5 p-4 font-body text-sm text-destructive/90">
               {checkoutError}
+            </div>
+          ) : null}
+
+          {cpfCnpjRequired && !checkout ? (
+            <div className="grid gap-4 rounded-3xl border-2 border-border bg-background p-4">
+              <div>
+                <div className="font-body text-sm font-semibold text-foreground">CPF ou CNPJ</div>
+                <div className="mt-1 font-body text-xs text-muted-foreground">Necessário para gerar a cobrança PIX.</div>
+                <input
+                  value={cpfCnpj}
+                  onChange={(e) => setCpfCnpj(formatCpfCnpj(e.target.value))}
+                  inputMode="numeric"
+                  className="mt-3 w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                  placeholder="000.000.000-00"
+                />
+              </div>
+              <div className="flex items-center justify-end">
+                <Button
+                  variant="hero"
+                  disabled={isCheckingOut || !checkoutPlan || !cpfCnpj.replace(/\D/g, "").length}
+                  onClick={() => {
+                    if (!checkoutPlan) return;
+                    const digits = cpfCnpj.replace(/\D/g, "");
+                    void createPixCheckout(checkoutPlan, digits.length === 11 || digits.length === 14 ? digits : null);
+                  }}
+                >
+                  Gerar PIX
+                </Button>
+              </div>
             </div>
           ) : null}
 

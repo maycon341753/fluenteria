@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 type CreateCheckoutBody = {
   plan_id?: string;
+  cpf_cnpj?: string;
 };
 
 type PlanRow = {
@@ -54,7 +55,13 @@ const asaasRequest = async <T>(baseUrl: string, apiKey: string, path: string, in
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(text || `Asaas error: ${res.status}`);
+    try {
+      const parsed = JSON.parse(text) as { errors?: Array<{ description?: string }> };
+      const msg = parsed?.errors?.map((e) => e.description).filter(Boolean).join(" | ");
+      throw new Error(msg || text || `Asaas error: ${res.status}`);
+    } catch {
+      throw new Error(text || `Asaas error: ${res.status}`);
+    }
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 };
@@ -64,6 +71,12 @@ const formatDueDate = (date = new Date()) => {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+};
+
+const normalizeCpfCnpj = (value: string | null | undefined) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.length === 11 || digits.length === 14) return digits;
+  return null;
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -95,6 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userId = userData.user.id;
     const userEmail = userData.user.email ?? null;
     const fullName = (userData.user.user_metadata?.full_name as string | undefined) ?? null;
+    const userCpf = (userData.user.user_metadata?.cpf as string | undefined) ?? null;
 
     const body = (req.body ?? {}) as CreateCheckoutBody;
     const planId = body.plan_id;
@@ -114,18 +128,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const plan = planData as PlanRow;
     if (!plan.price_cents || plan.price_cents <= 0) return res.status(400).json({ error: "paid plan required for pix" });
 
-    const { data: profileData } = await adminClient
+    const profileQuery = await adminClient
       .from("profiles")
-      .select("user_id, full_name, email, asaas_customer_id")
+      .select("user_id, full_name, email, asaas_customer_id, cpf_cnpj")
       .eq("user_id", userId)
       .maybeSingle();
 
+    const profileQueryFallback =
+      profileQuery.error && profileQuery.error.message.toLowerCase().includes("cpf_cnpj")
+        ? await adminClient.from("profiles").select("user_id, full_name, email, asaas_customer_id").eq("user_id", userId).maybeSingle()
+        : null;
+
+    const profileData = (profileQueryFallback?.data ?? profileQuery.data) as unknown;
+
     let asaasCustomerId = (profileData as { asaas_customer_id?: string | null } | null)?.asaas_customer_id ?? null;
+    const profileDoc = (profileData as { cpf_cnpj?: string | null } | null)?.cpf_cnpj ?? null;
+    const docFromBody = normalizeCpfCnpj(body.cpf_cnpj);
+    const docFromMeta = normalizeCpfCnpj(userCpf);
+    const docFromProfile = normalizeCpfCnpj(profileDoc);
+    const cpfCnpj = docFromBody ?? docFromMeta ?? docFromProfile;
+
+    if (docFromBody && docFromBody !== docFromProfile) {
+      const upd = await adminClient.from("profiles").update({ cpf_cnpj: docFromBody }).eq("user_id", userId);
+      if (upd.error && !upd.error.message.toLowerCase().includes("cpf_cnpj")) {
+        return res.status(400).json({ error: upd.error.message });
+      }
+    }
+
+    if (!cpfCnpj) {
+      return res.status(400).json({ error: "cpf_required", detail: "Informe CPF ou CNPJ para gerar o PIX." });
+    }
 
     if (!asaasCustomerId) {
       const customerPayload = {
         name: (profileData as { full_name?: string | null } | null)?.full_name ?? fullName ?? userEmail ?? "Cliente",
         email: (profileData as { email?: string | null } | null)?.email ?? userEmail ?? undefined,
+        cpfCnpj,
       };
 
       const createdCustomer = await asaasRequest<AsaasCustomerResponse>(asaasBaseUrl, asaasApiKey, "/customers", {
@@ -135,6 +173,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       asaasCustomerId = createdCustomer.id;
       await adminClient.from("profiles").update({ asaas_customer_id: asaasCustomerId }).eq("user_id", userId);
+    } else {
+      await asaasRequest<unknown>(asaasBaseUrl, asaasApiKey, `/customers/${asaasCustomerId}`, {
+        method: "PUT",
+        body: JSON.stringify({ cpfCnpj }),
+      });
     }
 
     const dueDate = formatDueDate(new Date());
