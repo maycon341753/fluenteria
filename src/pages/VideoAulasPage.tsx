@@ -8,6 +8,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 type ModuleKey = "crianca" | "adolescente" | "adulto";
 
+type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
+
 type VideoLessonRow = {
   id: string;
   module: ModuleKey;
@@ -42,6 +44,11 @@ const VideoAulasPage = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [planName, setPlanName] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<SubscriptionStatus | null>(null);
+  const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
+  const [isPlanLoading, setIsPlanLoading] = useState(true);
 
   const [module, setModule] = useState<ModuleKey>("crianca");
   const [level, setLevel] = useState<number>(1);
@@ -54,6 +61,31 @@ const VideoAulasPage = () => {
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
 
   const levels = useMemo(() => [1, 2, 3], []);
+
+  const isFreePlan = useMemo(() => {
+    if (!planName && !planId) return false;
+    if (planName?.toLowerCase() === "gratuito") return true;
+    if (!planId) return true;
+    return false;
+  }, [planId, planName]);
+
+  const freeDaysLeft = useMemo(() => {
+    if (!isFreePlan) return null;
+    if (!userCreatedAt) return null;
+    const created = new Date(userCreatedAt);
+    if (Number.isNaN(created.getTime())) return null;
+    const days = Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24));
+    return 10 - days;
+  }, [isFreePlan, userCreatedAt]);
+
+  const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft < 0 : false), [freeDaysLeft]);
+
+  const availableLevels = useMemo(() => {
+    if (isPlanLoading) return [1];
+    if (!isFreePlan) return levels;
+    if (freeExpired) return [];
+    return [1];
+  }, [freeExpired, isFreePlan, isPlanLoading, levels]);
 
   const load = async (m: ModuleKey, l: number) => {
     if (!supabase) {
@@ -69,6 +101,21 @@ const VideoAulasPage = () => {
     if (!sessionData.session?.user.id) {
       navigate("/login");
       return;
+    }
+
+    if (isFreePlan) {
+      if (freeExpired) {
+        setVideos([]);
+        setIsLoading(false);
+        setErrorMessage("Seu período gratuito expirou. Assine um plano para continuar.");
+        return;
+      }
+      if (l !== 1) {
+        setVideos([]);
+        setIsLoading(false);
+        setErrorMessage("No plano gratuito, apenas o nível 1 fica disponível durante 10 dias.");
+        return;
+      }
     }
 
     const { data, error } = await supabase
@@ -91,18 +138,94 @@ const VideoAulasPage = () => {
   };
 
   useEffect(() => {
+    let mounted = true;
     const qModule = (params.get("module") ?? "") as ModuleKey;
     const qLevel = Number(params.get("level") ?? "1");
     const m: ModuleKey = qModule === "adolescente" || qModule === "adulto" || qModule === "crianca" ? qModule : "crianca";
     const l = Number.isFinite(qLevel) && qLevel >= 1 ? qLevel : 1;
     setModule(m);
     setLevel(l);
-    void load(m, l);
+    (async () => {
+      if (!supabase) {
+        if (!mounted) return;
+        setErrorMessage("Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.");
+        setIsLoading(false);
+        setIsPlanLoading(false);
+        return;
+      }
+
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      const userId = data.session?.user.id;
+      setUserCreatedAt((data.session?.user.created_at as string | undefined) ?? null);
+      if (!userId) {
+        navigate("/login");
+        return;
+      }
+
+      const { data: subData, error: subError } = await supabase
+        .from("user_subscriptions")
+        .select("plan_id, status")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!mounted) return;
+
+      if (subError) {
+        setPlanName("Gratuito");
+        setPlanStatus(null);
+        setPlanId(null);
+      } else {
+        const status = subData?.status as SubscriptionStatus | undefined;
+        const userPlanId = (subData?.plan_id as string | null | undefined) ?? null;
+        setPlanId(userPlanId);
+
+        if (status && (status === "active" || status === "trialing") && userPlanId) {
+          const { data: planData, error: planError } = await supabase
+            .from("plans")
+            .select("name, price_cents")
+            .eq("id", userPlanId)
+            .maybeSingle();
+
+          if (!mounted) return;
+          if (planError) {
+            setPlanName("Gratuito");
+            setPlanStatus(null);
+          } else {
+            const fetchedName = (planData?.name as string | undefined) ?? "Premium";
+            const priceCents = (planData?.price_cents as number | undefined) ?? null;
+            setPlanName(fetchedName);
+            setPlanStatus(status);
+            if (fetchedName.toLowerCase() === "gratuito" || priceCents === 0) {
+              setPlanStatus(null);
+            }
+          }
+        } else {
+          setPlanName("Gratuito");
+          setPlanStatus(null);
+        }
+      }
+
+      setIsPlanLoading(false);
+      await load(m, l);
+    })();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
+    if (isPlanLoading) return;
     void load(module, level);
-  }, [module, level]);
+  }, [isPlanLoading, module, level]);
+
+  useEffect(() => {
+    if (!availableLevels.length) return;
+    if (!availableLevels.includes(level)) {
+      setLevel(availableLevels[0] ?? 1);
+    }
+  }, [availableLevels, level]);
 
   const openVideo = async (v: VideoLessonRow) => {
     if (!supabase) return;
@@ -170,8 +293,9 @@ const VideoAulasPage = () => {
                   value={level}
                   onChange={(e) => setLevel(Number(e.target.value))}
                   className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                  disabled={!availableLevels.length}
                 >
-                  {levels.map((n) => (
+                  {availableLevels.map((n) => (
                     <option key={n} value={n}>
                       Nível {n}
                     </option>
