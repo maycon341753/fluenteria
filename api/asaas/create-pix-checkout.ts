@@ -86,7 +86,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "POST") return res.status(405).json({ error: "method not allowed" });
 
     const supabaseUrl = getEnvAny(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
-    const supabaseAnonKey = getEnvAny(["SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"]);
     const supabaseServiceRoleKey = getEnvAny(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE"]);
     const asaasApiKey = getEnvAny(["ASAAS_API_KEY"]);
     const asaasBaseUrl = process.env.ASAAS_BASE_URL ?? "https://api.asaas.com/v3";
@@ -94,12 +93,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const authorization = req.headers.authorization ?? "";
     if (!authorization) return res.status(401).json({ error: "missing_authorization" });
 
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authorization } },
-      auth: { persistSession: false },
-    });
+    const body = (req.body ?? {}) as CreateCheckoutBody;
+    const planId = body.plan_id;
+    if (!planId) return res.status(400).json({ error: "plan_id required" });
 
-    const { data: userData, error: userError } = await authClient.auth.getUser();
+    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false } });
+
+    const jwt = authorization.replace(/^Bearer\s+/i, "").trim();
+    if (!jwt) return res.status(401).json({ error: "invalid_authorization" });
+
+    const { data: userData, error: userError } = await adminClient.auth.getUser(jwt);
     if (userError || !userData.user) {
       const detail = userError?.message ?? "invalid session";
       return res.status(401).json({ error: "unauthorized", detail });
@@ -109,12 +112,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userEmail = userData.user.email ?? null;
     const fullName = (userData.user.user_metadata?.full_name as string | undefined) ?? null;
     const userCpf = (userData.user.user_metadata?.cpf as string | undefined) ?? null;
-
-    const body = (req.body ?? {}) as CreateCheckoutBody;
-    const planId = body.plan_id;
-    if (!planId) return res.status(400).json({ error: "plan_id required" });
-
-    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { persistSession: false } });
 
     const { data: planData, error: planError } = await adminClient
       .from("plans")
