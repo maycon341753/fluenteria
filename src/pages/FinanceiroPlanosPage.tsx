@@ -195,13 +195,30 @@ const FinanceiroPlanosPage = () => {
 
     setIsCheckingOut(true);
     try {
-      const { data, error } = await supabase.functions.invoke("asaas-create-pix-checkout", { body: { plan_id: plan.id } });
-      if (error) {
-        setCheckoutError(error.message);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        setCheckoutError("Sessão expirada. Faça login novamente.");
         return;
       }
 
-      const checkoutRow = (data as PixCheckout | null) ?? null;
+      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+      const res = await fetch(`${apiBase}/api/asaas/create-pix-checkout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ plan_id: plan.id }),
+      });
+
+      const json = (await res.json().catch(() => null)) as (PixCheckout & { error?: string }) | null;
+      if (!res.ok) {
+        setCheckoutError(json?.error ?? "Falha ao gerar PIX.");
+        return;
+      }
+
+      const checkoutRow = json as PixCheckout | null;
       if (!checkoutRow?.payment_id || !checkoutRow?.pix_payload) {
         setCheckoutError("Resposta inválida do checkout PIX.");
         return;
