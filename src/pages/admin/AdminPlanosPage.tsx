@@ -12,6 +12,8 @@ type Plan = {
   price_cents: number;
   currency: string;
   interval: "month" | "year";
+  annual_discount_percent: number;
+  is_active: boolean;
   max_level: number | null;
   max_users: number | null;
   created_at: string;
@@ -36,6 +38,8 @@ const AdminPlanosPage = () => {
   const [editPriceCents, setEditPriceCents] = useState<number>(0);
   const [editCurrency, setEditCurrency] = useState("BRL");
   const [editInterval, setEditInterval] = useState<Plan["interval"]>("month");
+  const [editAnnualDiscountPercent, setEditAnnualDiscountPercent] = useState<number>(0);
+  const [editIsActive, setEditIsActive] = useState(true);
   const [editMaxLevel, setEditMaxLevel] = useState<number | "all">("all");
   const [editMaxUsers, setEditMaxUsers] = useState<number | "none">("none");
   const [isSaving, setIsSaving] = useState(false);
@@ -52,12 +56,37 @@ const AdminPlanosPage = () => {
 
       const { data, error } = await supabase
         .from("plans")
-        .select("id, name, price_cents, currency, interval, max_level, max_users, created_at")
+        .select("id, name, price_cents, currency, interval, annual_discount_percent, is_active, max_level, max_users, created_at")
         .order("price_cents", { ascending: true });
 
       if (!mounted) return;
 
       if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes("annual_discount_percent") || msg.includes("is_active")) {
+          const fallback = await supabase
+            .from("plans")
+            .select("id, name, price_cents, currency, interval, max_level, max_users, created_at")
+            .order("price_cents", { ascending: true });
+
+          if (!mounted) return;
+          if (fallback.error) {
+            setErrorMessage(fallback.error.message);
+            setIsLoading(false);
+            return;
+          }
+
+          setPlans(
+            (((fallback.data ?? []) as Omit<Plan, "annual_discount_percent" | "is_active">[]) ?? []).map((p) => ({
+              ...p,
+              annual_discount_percent: 0,
+              is_active: true,
+            })),
+          );
+          setIsLoading(false);
+          return;
+        }
+
         setErrorMessage(error.message);
         setIsLoading(false);
         return;
@@ -78,6 +107,8 @@ const AdminPlanosPage = () => {
     setEditPriceCents(plan.price_cents ?? 0);
     setEditCurrency(plan.currency ?? "BRL");
     setEditInterval(plan.interval ?? "month");
+    setEditAnnualDiscountPercent(plan.annual_discount_percent ?? 0);
+    setEditIsActive(plan.is_active ?? true);
     setEditMaxLevel(plan.max_level ?? "all");
     setEditMaxUsers(plan.max_users ?? "none");
     setEditOpen(true);
@@ -103,6 +134,8 @@ const AdminPlanosPage = () => {
           price_cents: Number(editPriceCents),
           currency: editCurrency.trim().toUpperCase(),
           interval: editInterval,
+          annual_discount_percent: Math.max(0, Math.min(100, Number(editAnnualDiscountPercent))),
+          is_active: Boolean(editIsActive),
           max_level: maxLevel,
           max_users: maxUsers,
         })
@@ -122,6 +155,8 @@ const AdminPlanosPage = () => {
                 price_cents: Number(editPriceCents),
                 currency: editCurrency.trim().toUpperCase(),
                 interval: editInterval,
+                annual_discount_percent: Math.max(0, Math.min(100, Number(editAnnualDiscountPercent))),
+                is_active: Boolean(editIsActive),
                 max_level: maxLevel,
                 max_users: maxUsers,
               }
@@ -153,6 +188,7 @@ const AdminPlanosPage = () => {
                   <TableHead>Nome</TableHead>
                   <TableHead>Preço</TableHead>
                   <TableHead>Intervalo</TableHead>
+                  <TableHead>Ativo</TableHead>
                   <TableHead>Níveis</TableHead>
                   <TableHead>Usuários</TableHead>
                   <TableHead>Ações</TableHead>
@@ -164,6 +200,7 @@ const AdminPlanosPage = () => {
                     <TableCell className="font-body font-semibold">{p.name}</TableCell>
                     <TableCell className="font-body">{formatMoney(p.price_cents, p.currency)}</TableCell>
                     <TableCell className="font-body">{p.interval === "year" ? "ano" : "mês"}</TableCell>
+                    <TableCell className="font-body">{p.is_active ? "Sim" : "Não"}</TableCell>
                     <TableCell className="font-body">{p.max_level ?? "Todos"}</TableCell>
                     <TableCell className="font-body">{p.max_users ?? "—"}</TableCell>
                     <TableCell>
@@ -175,7 +212,7 @@ const AdminPlanosPage = () => {
                 ))}
                 {!plans.length ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="font-body text-muted-foreground">
+                    <TableCell colSpan={7} className="font-body text-muted-foreground">
                       Nenhum plano encontrado.
                     </TableCell>
                   </TableRow>
@@ -194,6 +231,7 @@ const AdminPlanosPage = () => {
                       <div className="mt-1 font-body text-sm text-muted-foreground">
                         {formatMoney(p.price_cents, p.currency)}/{p.interval === "year" ? "ano" : "mês"}
                       </div>
+                      <div className="mt-1 font-body text-xs text-muted-foreground">{p.is_active ? "Ativo" : "Inativo"}</div>
                     </div>
                     <div className="text-right">
                       <div className="font-body text-xs text-muted-foreground">Níveis</div>
@@ -265,6 +303,31 @@ const AdminPlanosPage = () => {
                   <option value="year">ano</option>
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block font-body text-sm font-semibold text-foreground">Desconto anual (%)</label>
+              <input
+                type="number"
+                value={editAnnualDiscountPercent}
+                onChange={(e) => setEditAnnualDiscountPercent(Number(e.target.value))}
+                min={0}
+                max={100}
+                className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+                placeholder="0"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block font-body text-sm font-semibold text-foreground">Status do plano</label>
+              <select
+                value={editIsActive ? "active" : "inactive"}
+                onChange={(e) => setEditIsActive(e.target.value === "active")}
+                className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+              >
+                <option value="active">Ativo</option>
+                <option value="inactive">Inativo</option>
+              </select>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

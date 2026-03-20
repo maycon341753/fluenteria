@@ -13,6 +13,8 @@ type PlanRow = {
   price_cents: number;
   currency: string;
   interval: "month" | "year";
+  annual_discount_percent: number;
+  is_active: boolean;
   max_level: number | null;
   max_users: number | null;
 };
@@ -149,16 +151,41 @@ const FinanceiroPlanosPage = () => {
       return;
     }
 
-    const { data: planData, error: planError } = await supabase
+    const plansResult = await supabase
       .from("plans")
-      .select("id, name, price_cents, currency, interval, max_level, max_users")
+      .select("id, name, price_cents, currency, interval, annual_discount_percent, is_active, max_level, max_users")
       .order("price_cents", { ascending: true })
       .limit(20);
 
-    if (planError) {
-      setErrorMessage(planError.message);
-      setIsLoading(false);
-      return;
+    if (plansResult.error) {
+      const msg = plansResult.error.message.toLowerCase();
+      if (msg.includes("annual_discount_percent") || msg.includes("is_active")) {
+        const fallback = await supabase
+          .from("plans")
+          .select("id, name, price_cents, currency, interval, max_level, max_users")
+          .order("price_cents", { ascending: true })
+          .limit(20);
+
+        if (fallback.error) {
+          setErrorMessage(fallback.error.message);
+          setIsLoading(false);
+          return;
+        }
+
+        setPlans(
+          (((fallback.data ?? []) as Omit<PlanRow, "annual_discount_percent" | "is_active">[]) ?? []).map((p) => ({
+            ...p,
+            annual_discount_percent: 0,
+            is_active: true,
+          })),
+        );
+      } else {
+        setErrorMessage(plansResult.error.message);
+        setIsLoading(false);
+        return;
+      }
+    } else {
+      setPlans(((plansResult.data ?? []) as PlanRow[]) ?? []);
     }
 
     const { data: subData, error: subError } = await supabase
@@ -173,7 +200,6 @@ const FinanceiroPlanosPage = () => {
       return;
     }
 
-    setPlans(((planData ?? []) as PlanRow[]) ?? []);
     setSubscription((subData ?? null) as UserSubscription | null);
     setIsLoading(false);
   };
@@ -193,6 +219,8 @@ const FinanceiroPlanosPage = () => {
       return (a.name ?? "").localeCompare(b.name ?? "");
     });
   }, [plans]);
+
+  const visiblePlans = useMemo(() => sortedPlans.filter((p) => p.is_active || p.id === currentPlanId), [currentPlanId, sortedPlans]);
 
   const createPixCheckout = async (plan: PlanRow, cpfDigits: string | null) => {
     if (!supabase) return;
@@ -361,13 +389,23 @@ const FinanceiroPlanosPage = () => {
               </div>
 
               <div className="grid gap-6 lg:grid-cols-3">
-                {sortedPlans.map((p) => {
+                {visiblePlans.map((p) => {
                   const m = getPlanMarketing(p.name);
                   const isCurrent = currentPlanId === p.id;
                   const priceLabel =
                     p.price_cents === 0
                       ? "R$ 0"
                       : `${formatMoney(p.price_cents, p.currency)}/${p.interval === "year" ? "ano" : "mês"}`;
+                  const yearlyLabel =
+                    p.price_cents > 0 && p.interval === "month"
+                      ? (() => {
+                          const percent = Math.max(0, Math.min(100, Number(p.annual_discount_percent ?? 0)));
+                          const base = p.price_cents * 12;
+                          const discounted = Math.round((base * (100 - percent)) / 100);
+                          const suffix = percent > 0 ? ` (economize ${percent}%)` : "";
+                          return `${formatMoney(discounted, p.currency)}/ano${suffix}`;
+                        })()
+                      : null;
 
                   return (
                     <div
@@ -391,6 +429,7 @@ const FinanceiroPlanosPage = () => {
 
                       <div className="mt-5 rounded-2xl border-2 border-border bg-background p-4">
                         <div className="font-display text-3xl font-bold text-foreground">{priceLabel}</div>
+                        {yearlyLabel ? <div className="mt-1 font-body text-sm text-success">ou {yearlyLabel}</div> : null}
                         <div className="mt-2 grid gap-1">
                           {m.highlights.map((h) => (
                             <div key={h} className="font-body text-sm text-muted-foreground">
