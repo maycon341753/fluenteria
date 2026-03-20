@@ -178,6 +178,7 @@ const LoginPage = () => {
 
                 const userId = data.user?.id ?? null;
                 if (!userId) return;
+                sessionStorage.setItem("show_free_plan_upsell_after_login", "1");
                 const path = await resolvePostLoginRedirect(userId);
                 navigate(path, { replace: true });
               } finally {

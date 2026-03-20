@@ -37,14 +37,6 @@ const formatDate = (value: string) => {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(date);
 };
 
-const getLocalDateKey = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
-
 const ModuleSelectPage = () => {
   const navigate = useNavigate();
   const modules = useMemo<LearningModule[]>(
@@ -100,7 +92,6 @@ const ModuleSelectPage = () => {
   const [planInfoError, setPlanInfoError] = useState<string | null>(null);
   const [userCreatedAt, setUserCreatedAt] = useState<string | null>(null);
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [upsellOpen, setUpsellOpen] = useState(false);
 
   useEffect(() => {
@@ -123,7 +114,6 @@ const ModuleSelectPage = () => {
       }
 
       const userId = data.session.user.id;
-      setUserId(userId);
       setUserCreatedAt((data.session.user.created_at as string | undefined) ?? null);
 
       const { data: subData, error: subError } = await supabase
@@ -217,22 +207,14 @@ const ModuleSelectPage = () => {
 
   const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft < 0 : false), [freeDaysLeft]);
 
-  const shouldShowUpsell = useMemo(() => {
-    if (!userId) return false;
-    if (!planName || planName.toLowerCase() !== "gratuito") return false;
-    const key = `upsell_free_plan_last_shown_${userId}`;
-    const last = localStorage.getItem(key);
-    return last !== getLocalDateKey();
-  }, [planName, userId]);
-
   useEffect(() => {
     if (isLoading) return;
-    if (!shouldShowUpsell) return;
-    if (!userId) return;
-    const key = `upsell_free_plan_last_shown_${userId}`;
-    localStorage.setItem(key, getLocalDateKey());
+    if (!planName || planName.toLowerCase() !== "gratuito") return;
+    const shouldShow = sessionStorage.getItem("show_free_plan_upsell_after_login") === "1";
+    if (!shouldShow) return;
+    sessionStorage.removeItem("show_free_plan_upsell_after_login");
     setUpsellOpen(true);
-  }, [isLoading, shouldShowUpsell, userId]);
+  }, [isLoading, planName]);
 
   const currentModule = useMemo(() => modules.find((m) => m.key === selectedModule) ?? modules[0], [modules, selectedModule]);
   const availableLevels = useMemo(() => {
