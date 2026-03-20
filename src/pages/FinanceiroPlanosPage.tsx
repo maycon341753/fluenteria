@@ -258,9 +258,25 @@ const FinanceiroPlanosPage = () => {
   const sortedPlans = useMemo(() => {
     const list = [...plans];
     return list.sort((a, b) => {
+      const orderKey = (name: string) => {
+        const key = name.trim().toLowerCase();
+        if (key === "gratuito") return 0;
+        if (key === "premium") return 1;
+        if (key === "max") return 2;
+        if (key.startsWith("gratuito")) return 0;
+        if (key.startsWith("premium")) return 1;
+        if (key.startsWith("max")) return 2;
+        return 3;
+      };
+
+      const ak = orderKey(a.name ?? "");
+      const bk = orderKey(b.name ?? "");
+      if (ak !== bk) return ak - bk;
+
       const ap = a.price_cents ?? 0;
       const bp = b.price_cents ?? 0;
       if (ap !== bp) return ap - bp;
+
       return (a.name ?? "").localeCompare(b.name ?? "");
     });
   }, [plans]);
