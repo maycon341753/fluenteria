@@ -24,7 +24,9 @@ import AdminPlanosPage from "./pages/admin/AdminPlanosPage";
 import AdminChamadosPage from "./pages/admin/AdminChamadosPage";
 import AdminConteudosPage from "./pages/admin/AdminConteudosPage";
 import AdminProgressoPage from "./pages/admin/AdminProgressoPage";
+import AdminVideoAulasPage from "./pages/admin/AdminVideoAulasPage";
 import SupportPage from "./pages/SupportPage";
+import VideoAulasPage from "./pages/VideoAulasPage";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,7 @@ const App = () => (
           <Route path="/dashboard/crianca" element={<ChildDashboard />} />
           <Route path="/dashboard/adolescente" element={<TeenDashboard />} />
           <Route path="/dashboard/adulto" element={<AdultDashboard />} />
+          <Route path="/video-aulas" element={<VideoAulasPage />} />
           <Route path="/referrals" element={<ReferralsPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
@@ -55,6 +58,7 @@ const App = () => (
           <Route path="/admin/chamados" element={<AdminChamadosPage />} />
           <Route path="/admin/conteudos" element={<AdminConteudosPage />} />
           <Route path="/admin/progresso" element={<AdminProgressoPage />} />
+          <Route path="/admin/video-aulas" element={<AdminVideoAulasPage />} />
           <Route path="/eca-lgpd" element={<EcaLgpdPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

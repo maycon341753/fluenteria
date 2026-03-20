@@ -247,6 +247,28 @@ const ModuleSelectPage = () => {
     }
   };
 
+  const handleContinueVideo = async () => {
+    if (!supabase) {
+      setErrorMessage("Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.");
+      return;
+    }
+
+    if (isFreePlan) {
+      if (freeExpired) {
+        setErrorMessage("Seu período gratuito expirou. Assine um plano para continuar.");
+        navigate("/pricing");
+        return;
+      }
+      if (selectedLevel !== 1) {
+        setErrorMessage("No plano gratuito, apenas o nível 1 fica disponível durante 10 dias.");
+        setSelectedLevel(1);
+        return;
+      }
+    }
+
+    navigate(`/video-aulas?module=${selectedModule}&level=${selectedLevel}`);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -333,6 +355,34 @@ const ModuleSelectPage = () => {
                     ))}
                   </select>
                   <Button variant="hero" size="lg" onClick={handleContinue} disabled={isSubmitting || !availableLevels.length}>
+                    Continuar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {!isLoading ? (
+            <div className="mt-6 rounded-3xl border-2 border-border bg-card p-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-foreground">Módulo Video Aula</h3>
+                  <p className="font-body text-sm text-muted-foreground">Selecione o nível e continue para os vídeos.</p>
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <select
+                    value={selectedLevel}
+                    onChange={(e) => setSelectedLevel(Number(e.target.value))}
+                    className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none sm:w-72"
+                    disabled={!availableLevels.length}
+                  >
+                    {availableLevels.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Button variant="hero" size="lg" onClick={handleContinueVideo} disabled={isSubmitting || !availableLevels.length}>
                     Continuar
                   </Button>
                 </div>
