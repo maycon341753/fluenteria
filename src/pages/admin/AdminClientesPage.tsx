@@ -44,6 +44,7 @@ const AdminClientesPage = () => {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -151,6 +152,28 @@ const AdminClientesPage = () => {
     }
     return map;
   }, [learningPaths]);
+
+  const filteredProfiles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return profiles;
+    return profiles.filter((p) => {
+      const sub = subByUserId[p.user_id];
+      const planName = sub?.plan_id ? planNameById[sub.plan_id] ?? sub.plan_id : "";
+      const learning = learningByUserId[p.user_id];
+      const haystack = [
+        p.full_name ?? "",
+        p.email ?? "",
+        p.user_id ?? "",
+        planName,
+        sub?.status ?? "",
+        learning?.module ?? "",
+        learning?.level ? String(learning.level) : "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [learningByUserId, planNameById, profiles, searchQuery, subByUserId]);
 
   const selectedProfile = useMemo(() => {
     if (!selectedUserId) return null;
@@ -282,7 +305,17 @@ const AdminClientesPage = () => {
       ) : (
         <div className="rounded-3xl border-2 border-border bg-card p-6">
           <h2 className="font-display text-xl font-bold text-foreground">Clientes cadastrados</h2>
-          <p className="mt-2 font-body text-sm text-muted-foreground">{profiles.length} registros</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 md:items-center">
+            <p className="font-body text-sm text-muted-foreground">
+              {searchQuery.trim() ? `${filteredProfiles.length} de ${profiles.length} registros` : `${profiles.length} registros`}
+            </p>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-2xl border-2 border-border bg-background px-4 py-3 font-body text-foreground focus:border-primary focus:outline-none"
+              placeholder="Buscar por nome, email, plano..."
+            />
+          </div>
           <div className="mt-4 hidden md:block">
             <Table>
               <TableHeader>
@@ -296,7 +329,7 @@ const AdminClientesPage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {profiles.map((p) => {
+                {filteredProfiles.map((p) => {
                   const sub = subByUserId[p.user_id];
                   const planName = sub?.plan_id ? planNameById[sub.plan_id] ?? sub.plan_id : "—";
                   const learning = learningByUserId[p.user_id];
@@ -320,7 +353,7 @@ const AdminClientesPage = () => {
                     </TableRow>
                   );
                 })}
-                {!profiles.length ? (
+                {!filteredProfiles.length ? (
                   <TableRow>
                     <TableCell colSpan={6} className="font-body text-muted-foreground">
                       Nenhum cliente encontrado.
@@ -332,8 +365,8 @@ const AdminClientesPage = () => {
           </div>
 
           <div className="mt-4 grid gap-3 md:hidden">
-            {profiles.length ? (
-              profiles.map((p) => {
+            {filteredProfiles.length ? (
+              filteredProfiles.map((p) => {
                 const sub = subByUserId[p.user_id];
                 const planName = sub?.plan_id ? planNameById[sub.plan_id] ?? sub.plan_id : "—";
                 return (
