@@ -146,6 +146,9 @@ const Navbar = () => {
               <button onClick={() => navigate("/")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                 Início
               </button>
+              <button onClick={() => navigate("/sobre-nos")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
+                Sobre nós
+              </button>
               <button onClick={() => navigate("/pricing")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
                 Planos
               </button>
@@ -223,6 +226,7 @@ const Navbar = () => {
             ) : (
               <>
                 <button onClick={() => { navigate("/"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Início</button>
+                <button onClick={() => { navigate("/sobre-nos"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Sobre nós</button>
                 <button onClick={() => { navigate("/pricing"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">Planos</button>
               </>
             )}

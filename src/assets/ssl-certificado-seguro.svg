@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="104" viewBox="0 0 520 104" fill="none">
+  <rect x="0" y="0" width="520" height="104" rx="12" fill="#0B0F14"/>
+  <rect x="0" y="0" width="520" height="104" rx="12" fill="url(#bg)"/>
+
+  <g transform="translate(22,20)">
+    <path d="M28 0c10.6 7.2 19 7.2 29 0v24.8c0 14.4-12 23.2-26.1 29.1-1.6.7-2.9.7-4.5 0C12 48 0 39.2 0 24.8V0c10 7.2 18.4 7.2 28 0Z" fill="#16A34A"/>
+    <path d="M28 10c6.6 0 12 5.4 12 12v5h3c2.2 0 4 1.8 4 4v12c0 2.2-1.8 4-4 4H13c-2.2 0-4-1.8-4-4V31c0-2.2 1.8-4 4-4h3v-5c0-6.6 5.4-12 12-12Z" fill="#F59E0B"/>
+    <path d="M28 17c3.3 0 6 2.7 6 6v4H22v-4c0-3.3 2.7-6 6-6Z" fill="#111827" fill-opacity=".35"/>
+    <circle cx="28" cy="37" r="4" fill="#111827" fill-opacity=".55"/>
+    <rect x="26.4" y="39.4" width="3.2" height="7.2" rx="1.6" fill="#111827" fill-opacity=".55"/>
+  </g>
+
+  <text x="100" y="43" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="22" font-weight="900" fill="#FFFFFF" letter-spacing=".5">
+    SITE SEGURO
+  </text>
+  <rect x="98" y="56" width="210" height="34" rx="10" fill="#16A34A"/>
+  <rect x="98" y="56" width="210" height="34" rx="10" fill="url(#pill)" fill-opacity=".6"/>
+  <text x="118" y="79" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="22" font-weight="900" fill="#FFFFFF" letter-spacing=".5">
+    SSL
+  </text>
+  <text x="168" y="79" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="22" font-weight="800" fill="#D1FAE5" letter-spacing=".5">
+    CERTIFICADO
+  </text>
+
+  <g transform="translate(350,18)">
+    <circle cx="26" cy="26" r="22" fill="#111827" stroke="#9CA3AF" stroke-width="4"/>
+    <path d="M26 18c5.5 0 10 4.5 10 10v6h2c2 0 3.5 1.5 3.5 3.5V48c0 2-1.5 3.5-3.5 3.5H14c-2 0-3.5-1.5-3.5-3.5V37.5c0-2 1.5-3.5 3.5-3.5h2v-6c0-5.5 4.5-10 10-10Z" fill="#D1D5DB"/>
+    <path d="M19 26c0-3.9 3.1-7 7-7s7 3.1 7 7v8H19v-8Z" fill="#111827" fill-opacity=".25"/>
+    <path d="M45 22l6 6-12 12-6-6 3-3 3 3 9-9Z" fill="#22C55E"/>
+  </g>
+
+  <text x="392" y="42" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="18" font-weight="900" fill="#E5E7EB" letter-spacing=".6">
+    COMPRA 100%
+  </text>
+  <text x="392" y="78" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="34" font-weight="900" fill="#22C55E" letter-spacing="1">
+    SEGURA
+  </text>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="520" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B0F14" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0B0F14" stop-opacity=".35"/>
+    </linearGradient>
+    <linearGradient id="pill" x1="98" y1="56" x2="308" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#166534"/>
+    </linearGradient>
+  </defs>
+</svg>
+

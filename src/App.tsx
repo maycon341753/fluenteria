@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import LessonPage from "./pages/LessonPage";
 import ParentDashboard from "./pages/ParentDashboard";
 import ReferralsPage from "./pages/ReferralsPage";
+import SobreNosPage from "./pages/SobreNosPage";
 import LoginPage from "./pages/LoginPage";
 import PricingPage from "./pages/PricingPage";
 import EcaLgpdPage from "./pages/EcaLgpdPage";
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/dashboard/adulto" element={<AdultDashboard />} />
           <Route path="/video-aulas" element={<VideoAulasPage />} />
           <Route path="/referrals" element={<ReferralsPage />} />
+          <Route path="/sobre-nos" element={<SobreNosPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/financeiro" element={<FinanceiroPage />} />
