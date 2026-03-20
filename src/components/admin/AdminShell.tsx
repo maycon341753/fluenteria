@@ -77,7 +77,7 @@ const AdminShell = ({ title, children }: Props) => {
                     className="shrink-0 justify-start md:whitespace-nowrap"
                     onClick={() => navigate("/admin/video-aulas")}
                   >
-                    Video Aulas
+                    Video Aula + Musicas
                   </Button>
                   <Button
                     variant="ghost"

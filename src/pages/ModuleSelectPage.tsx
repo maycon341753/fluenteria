@@ -366,7 +366,7 @@ const ModuleSelectPage = () => {
             <div className="mt-6 rounded-3xl border-2 border-border bg-card p-6">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <h3 className="font-display text-xl font-bold text-foreground">Módulo Video Aula</h3>
+                  <h3 className="font-display text-xl font-bold text-foreground">Módulo Video Aula + Musicas</h3>
                   <p className="font-body text-sm text-muted-foreground">Selecione o nível e continue para os vídeos.</p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

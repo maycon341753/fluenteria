@@ -136,7 +136,7 @@ const VideoAulasPage = () => {
         <div className="mx-auto max-w-5xl">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="font-display text-3xl font-bold text-foreground md:text-4xl">Módulo Video Aula</h1>
+              <h1 className="font-display text-3xl font-bold text-foreground md:text-4xl">Módulo Video Aula + Musicas</h1>
               <p className="mt-2 font-body text-muted-foreground">Assista aos vídeos do seu módulo e nível.</p>
             </div>
             <Button variant="outline" onClick={() => navigate("/modulos")}>
@@ -274,4 +274,3 @@ const VideoAulasPage = () => {
 };
 
 export default VideoAulasPage;
-

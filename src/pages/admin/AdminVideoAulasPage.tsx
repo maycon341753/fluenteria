@@ -205,7 +205,7 @@ const AdminVideoAulasPage = () => {
   };
 
   return (
-    <AdminShell title="Video Aulas">
+    <AdminShell title="Video Aula + Musicas">
       {errorMessage ? (
         <div className="mb-6 rounded-3xl border-2 border-destructive/40 bg-destructive/5 p-6 font-body text-destructive">
           {errorMessage}
