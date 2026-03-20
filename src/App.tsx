@@ -16,6 +16,7 @@ import ChildDashboard from "./pages/ChildDashboard";
 import TeenDashboard from "./pages/TeenDashboard";
 import AdultDashboard from "./pages/AdultDashboard";
 import FinanceiroPage from "./pages/FinanceiroPage";
+import FinanceiroPlanosPage from "./pages/FinanceiroPlanosPage";
 import AdminIndexPage from "./pages/admin/AdminIndexPage";
 import AdminFinanceiroPage from "./pages/admin/AdminFinanceiroPage";
 import AdminClientesPage from "./pages/admin/AdminClientesPage";
@@ -45,6 +46,7 @@ const App = () => (
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/financeiro" element={<FinanceiroPage />} />
+          <Route path="/financeiro/planos" element={<FinanceiroPlanosPage />} />
           <Route path="/suporte" element={<SupportPage />} />
           <Route path="/admin" element={<AdminIndexPage />} />
           <Route path="/admin/financeiro" element={<AdminFinanceiroPage />} />

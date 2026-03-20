@@ -200,7 +200,7 @@ const FinanceiroPage = () => {
                     </div>
                   </div>
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                    <Button variant="default" onClick={() => navigate("/pricing")}>
+                    <Button variant="default" onClick={() => navigate("/financeiro/planos")}>
                       Ver planos
                     </Button>
                     <Button variant="outline" onClick={() => navigate("/referrals")}>

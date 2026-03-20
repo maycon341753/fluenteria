@@ -10,9 +10,28 @@ export const recognizeSpeech = (options: RecognizeSpeechOptions = {}) =>
       return;
     }
 
+    type RecognitionResultAlternative = { transcript?: unknown };
+    type RecognitionResult = { 0?: RecognitionResultAlternative };
+    type RecognitionEvent = { results?: { 0?: RecognitionResult } };
+    type RecognitionErrorEvent = { error?: unknown };
+
+    type RecognitionInstance = {
+      lang: string;
+      interimResults: boolean;
+      maxAlternatives: number;
+      continuous: boolean;
+      start: () => void;
+      stop: () => void;
+      onresult: ((event: RecognitionEvent) => void) | null;
+      onerror: ((event: RecognitionErrorEvent) => void) | null;
+      onend: (() => void) | null;
+    };
+
+    type RecognitionConstructor = new () => RecognitionInstance;
+
     const w = window as unknown as {
-      SpeechRecognition?: new () => any;
-      webkitSpeechRecognition?: new () => any;
+      SpeechRecognition?: RecognitionConstructor;
+      webkitSpeechRecognition?: RecognitionConstructor;
     };
 
     const Recognition = w.SpeechRecognition ?? w.webkitSpeechRecognition;
@@ -37,19 +56,21 @@ export const recognizeSpeech = (options: RecognizeSpeechOptions = {}) =>
     const timeout = setTimeout(() => {
       try {
         recognition.stop();
-      } catch {}
+      } catch {
+        void 0;
+      }
       finish(() => reject(new Error("Tempo esgotado ao ouvir o microfone.")));
     }, options.timeoutMs ?? 8000);
 
-    recognition.onresult = (event: any) => {
-      const transcript = event?.results?.[0]?.[0]?.transcript;
+    recognition.onresult = (event: RecognitionEvent) => {
+      const transcript = event.results?.[0]?.[0]?.transcript;
       clearTimeout(timeout);
       finish(() => resolve(typeof transcript === "string" ? transcript : ""));
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: RecognitionErrorEvent) => {
       clearTimeout(timeout);
-      const code = event?.error as string | undefined;
+      const code = typeof event.error === "string" ? event.error : undefined;
       if (code === "not-allowed" || code === "service-not-allowed") {
         finish(() => reject(new Error("Permita o uso do microfone no navegador.")));
         return;

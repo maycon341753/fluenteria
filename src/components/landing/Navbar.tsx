@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type ModuleKey = "crianca" | "adolescente" | "adulto";
 
@@ -18,6 +19,7 @@ const Navbar = () => {
   const [userName, setUserName] = useState<string | null>(null);
   const [selectedModule, setSelectedModule] = useState<ModuleKey | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [financeMenuOpen, setFinanceMenuOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -100,9 +102,26 @@ const Navbar = () => {
                 </button>
               ) : null}
               {!isSuperAdmin ? (
-                <button onClick={() => navigate("/financeiro")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
-                  Financeiro
-                </button>
+                <div
+                  className="relative"
+                  onMouseEnter={() => setFinanceMenuOpen(true)}
+                  onMouseLeave={() => setFinanceMenuOpen(false)}
+                >
+                  <DropdownMenu open={financeMenuOpen} onOpenChange={setFinanceMenuOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        onClick={() => navigate("/financeiro")}
+                        className="font-body font-semibold text-foreground hover:text-primary transition-colors"
+                      >
+                        Financeiro
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" sideOffset={10}>
+                      <DropdownMenuItem onClick={() => navigate("/financeiro")}>Visão geral</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate("/financeiro/planos")}>Planos</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               ) : null}
               {!isSuperAdmin ? (
                 <button onClick={() => navigate("/suporte")} className="font-body font-semibold text-foreground hover:text-primary transition-colors">
@@ -176,6 +195,11 @@ const Navbar = () => {
                 {!isSuperAdmin ? (
                   <button onClick={() => { navigate("/financeiro"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
                     Financeiro
+                  </button>
+                ) : null}
+                {!isSuperAdmin ? (
+                  <button onClick={() => { navigate("/financeiro/planos"); setMenuOpen(false); }} className="font-body font-semibold text-foreground text-left py-2">
+                    Planos
                   </button>
                 ) : null}
                 {!isSuperAdmin ? (
