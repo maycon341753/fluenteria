@@ -212,9 +212,11 @@ const FinanceiroPlanosPage = () => {
         body: JSON.stringify({ plan_id: plan.id }),
       });
 
-      const json = (await res.json().catch(() => null)) as (PixCheckout & { error?: string }) | null;
+      const json = (await res.json().catch(() => null)) as (PixCheckout & { error?: string; detail?: string }) | null;
       if (!res.ok) {
-        setCheckoutError(json?.error ?? "Falha ao gerar PIX.");
+        const base = json?.error ?? "Falha ao gerar PIX.";
+        const detail = json?.detail ? ` (${json.detail})` : "";
+        setCheckoutError(`${base}${detail}`);
         return;
       }
 

@@ -78,13 +78,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const asaasApiKey = getEnvAny(["ASAAS_API_KEY"]);
     const asaasBaseUrl = process.env.ASAAS_BASE_URL ?? "https://api.asaas.com/v3";
 
+    const authorization = req.headers.authorization ?? "";
+    if (!authorization) return res.status(401).json({ error: "missing_authorization" });
+
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: req.headers.authorization ?? "" } },
+      global: { headers: { Authorization: authorization } },
       auth: { persistSession: false },
     });
 
     const { data: userData, error: userError } = await authClient.auth.getUser();
-    if (userError || !userData.user) return res.status(401).json({ error: "unauthorized" });
+    if (userError || !userData.user) {
+      const detail = userError?.message ?? "invalid session";
+      return res.status(401).json({ error: "unauthorized", detail });
+    }
 
     const userId = userData.user.id;
     const userEmail = userData.user.email ?? null;
