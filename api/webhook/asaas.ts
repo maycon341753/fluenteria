@@ -12,10 +12,12 @@ type AsaasWebhookBody = {
 
 const ok = (res: VercelResponse) => res.status(200).json({ ok: true });
 
-const getEnv = (key: string) => {
-  const v = process.env[key];
-  if (!v) throw new Error(`Missing env: ${key}`);
-  return v;
+const getEnvAny = (keys: string[]) => {
+  for (const key of keys) {
+    const v = process.env[key];
+    if (v) return v;
+  }
+  throw new Error(`Missing env: ${keys[0]}`);
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -23,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "POST") return res.status(405).json({ error: "method not allowed" });
 
     const token = String(req.headers["asaas-access-token"] ?? "");
-    const expected = getEnv("ASAAS_WEBHOOK_TOKEN");
+    const expected = getEnvAny(["ASAAS_WEBHOOK_TOKEN", "ASAAS_WEBHOOK_ACCESS_TOKEN"]);
     if (!token || token !== expected) return res.status(401).json({ error: "unauthorized" });
 
     const payload = (req.body ?? {}) as AsaasWebhookBody;
@@ -32,8 +34,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const paymentId = payload.payment?.id ?? null;
     const status = payload.payment?.status ?? null;
 
-    const supabaseUrl = getEnv("SUPABASE_URL");
-    const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = getEnvAny(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
+    const serviceRoleKey = getEnvAny(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE"]);
     const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
     if (eventId) {
@@ -68,4 +70,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: message });
   }
 }
-

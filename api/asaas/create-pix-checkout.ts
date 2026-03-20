@@ -34,10 +34,12 @@ const cors = (res: VercelResponse) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 };
 
-const getEnv = (key: string) => {
-  const v = process.env[key];
-  if (!v) throw new Error(`Missing env: ${key}`);
-  return v;
+const getEnvAny = (keys: string[]) => {
+  for (const key of keys) {
+    const v = process.env[key];
+    if (v) return v;
+  }
+  throw new Error(`Missing env: ${keys[0]}`);
 };
 
 const asaasRequest = async <T>(baseUrl: string, apiKey: string, path: string, init?: RequestInit): Promise<T> => {
@@ -70,10 +72,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "OPTIONS") return res.status(204).end();
     if (req.method !== "POST") return res.status(405).json({ error: "method not allowed" });
 
-    const supabaseUrl = getEnv("SUPABASE_URL");
-    const supabaseAnonKey = getEnv("SUPABASE_ANON_KEY");
-    const supabaseServiceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
-    const asaasApiKey = getEnv("ASAAS_API_KEY");
+    const supabaseUrl = getEnvAny(["SUPABASE_URL", "VITE_SUPABASE_URL"]);
+    const supabaseAnonKey = getEnvAny(["SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY"]);
+    const supabaseServiceRoleKey = getEnvAny(["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE"]);
+    const asaasApiKey = getEnvAny(["ASAAS_API_KEY"]);
     const asaasBaseUrl = process.env.ASAAS_BASE_URL ?? "https://api.asaas.com/v3";
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -208,4 +210,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: message });
   }
 }
-
