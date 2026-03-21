@@ -95,7 +95,7 @@ const PricingSection = () => {
             Escolha seu plano 💎
           </h2>
           <p className="mx-auto max-w-2xl font-body text-lg text-muted-foreground">
-            Comece grátis e evolua quando quiser. Teste o Premium por 7 dias sem compromisso!
+            Comece grátis e evolua quando quiser. Teste gratuito por 10 dias sem compromisso!
           </p>
         </div>
         <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">

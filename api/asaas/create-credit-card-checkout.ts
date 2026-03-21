@@ -122,10 +122,26 @@ const normalizePhone = (value: string | null | undefined) => {
   return digits;
 };
 
+const normalizeRemoteIp = (value: string | null | undefined) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const cleaned = raw.replace(/^::ffff:/, "");
+  const ipv4 = cleaned.match(/^(\d{1,3}\.){3}\d{1,3}$/)?.[0] ?? null;
+  if (!ipv4) return null;
+  const parts = ipv4.split(".").map((p) => Number(p));
+  if (parts.some((n) => !Number.isFinite(n) || n < 0 || n > 255)) return null;
+  return ipv4;
+};
+
 const getRemoteIp = (req: VercelRequest) => {
-  const header = String(req.headers["x-forwarded-for"] ?? "");
-  const ip = header.split(",")[0]?.trim();
-  return ip || null;
+  const xf = String(req.headers["x-forwarded-for"] ?? "");
+  const xr = String(req.headers["x-real-ip"] ?? "");
+  const ip =
+    xf.split(",")[0]?.trim() ||
+    xr.trim() ||
+    (typeof req.socket?.remoteAddress === "string" ? req.socket.remoteAddress : "") ||
+    "";
+  return normalizeRemoteIp(ip);
 };
 
 const isPaidAsaasStatus = (value: unknown) => {
