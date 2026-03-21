@@ -46,7 +46,7 @@ const TestimonialsSection = () => {
         <div className="mb-12 text-center">
           <h2 className="mb-3 font-display text-3xl font-bold text-foreground md:text-4xl">Avaliações ⭐</h2>
           <p className="mx-auto max-w-2xl font-body text-lg text-muted-foreground">
-            Pessoas que gostaram da Fluenteria e recomendam a plataforma.
+            Pessoas que gostaram da Blastidiomas e recomendam a plataforma.
           </p>
         </div>
 

@@ -9,7 +9,7 @@ const PrivacidadeSegurancaPage = () => (
       <div className="mx-auto max-w-4xl">
         <h1 className="mb-3 font-display text-3xl font-bold text-foreground md:text-4xl">Privacidade e segurança</h1>
         <p className="mb-10 font-body text-lg text-muted-foreground md:text-xl">
-          Esta página explica, de forma simples, como a Fluenteria trata dados pessoais e quais medidas de segurança aplicamos para proteger
+          Esta página explica, de forma simples, como a Blastidiomas trata dados pessoais e quais medidas de segurança aplicamos para proteger
           usuários e famílias.
         </p>
 
@@ -72,7 +72,7 @@ const PrivacidadeSegurancaPage = () => (
               <div className="rounded-2xl border-2 border-border bg-background p-5">
                 <h3 className="mb-2 font-display text-lg font-bold text-foreground">Pagamentos</h3>
                 <p className="font-body text-muted-foreground">
-                  Dados sensíveis de pagamento são processados pelo provedor de pagamento. A Fluenteria utiliza as integrações necessárias para
+                  Dados sensíveis de pagamento são processados pelo provedor de pagamento. A Blastidiomas utiliza as integrações necessárias para
                   criar e confirmar cobranças.
                 </p>
               </div>
@@ -100,7 +100,7 @@ const PrivacidadeSegurancaPage = () => (
             <div className="rounded-2xl border-2 border-border bg-background p-5">
               <div className="grid gap-2 font-body text-sm text-muted-foreground">
                 <div>
-                  <span className="font-semibold text-foreground">Razão social:</span> Fluenteria
+                  <span className="font-semibold text-foreground">Razão social:</span> Blastidiomas
                 </div>
                 <div>
                   <span className="font-semibold text-foreground">CNPJ:</span> 39.433.448/0001-34
@@ -116,4 +116,3 @@ const PrivacidadeSegurancaPage = () => (
 );
 
 export default PrivacidadeSegurancaPage;
-

@@ -78,6 +78,8 @@ const addDaysIso = (value: string, days: number) => {
   return date.toISOString();
 };
 
+const dayStartUtcMs = (value: Date) => Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
+
 const getCycleDays = (cycle: Invoice["billing_cycle"]) => (cycle === "year" ? 365 : 30);
 
 const getCycleLabel = (cycle: Invoice["billing_cycle"]) => (cycle === "year" ? "Anual" : "Mensal");
@@ -289,16 +291,22 @@ const FinanceiroPage = () => {
   const freeEndIso = useMemo(() => {
     if (!isFreePlan) return null;
     if (!userCreatedAt) return null;
-    return addDaysIso(userCreatedAt, 10);
+    const created = new Date(userCreatedAt);
+    if (Number.isNaN(created.getTime())) return null;
+    const start = dayStartUtcMs(created);
+    return new Date(start + 10 * 24 * 60 * 60 * 1000).toISOString();
   }, [isFreePlan, userCreatedAt]);
 
   const freeDaysLeft = useMemo(() => {
-    if (!freeEndIso) return null;
-    const end = new Date(freeEndIso).getTime();
-    if (!Number.isFinite(end)) return null;
-    const diff = end - Date.now();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
-  }, [freeEndIso]);
+    if (!isFreePlan) return null;
+    if (!userCreatedAt) return null;
+    const created = new Date(userCreatedAt);
+    if (Number.isNaN(created.getTime())) return null;
+    const createdStart = dayStartUtcMs(created);
+    const nowStart = dayStartUtcMs(new Date());
+    const days = Math.max(0, Math.floor((nowStart - createdStart) / (1000 * 60 * 60 * 24)));
+    return 10 - days;
+  }, [isFreePlan, userCreatedAt]);
 
   const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft <= 0 : false), [freeDaysLeft]);
 
@@ -374,7 +382,7 @@ const FinanceiroPage = () => {
       <div class="row">
         <div>
           <p class="title">${title}</p>
-          <div class="muted">Fluenteria · CNPJ: 39.433.448/0001-34</div>
+          <div class="muted">Blastidiomas · CNPJ: 39.433.448/0001-34</div>
         </div>
         <div class="badge">Pago</div>
       </div>

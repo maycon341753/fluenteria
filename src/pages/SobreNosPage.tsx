@@ -9,7 +9,7 @@ const SobreNosPage = () => (
       <div className="mx-auto max-w-4xl">
         <h1 className="mb-3 font-display text-3xl font-bold text-foreground md:text-4xl">Sobre nós</h1>
         <p className="mb-10 font-body text-lg text-muted-foreground md:text-xl">
-          A Fluenteria é uma plataforma de aprendizado de idiomas que combina conteúdo prático, acompanhamento e experiência divertida para
+          A Blastidiomas é uma plataforma de aprendizado de idiomas que combina conteúdo prático, acompanhamento e experiência divertida para
           ajudar alunos e famílias a evoluírem com consistência.
         </p>
 
@@ -70,7 +70,7 @@ const SobreNosPage = () => (
             <div className="rounded-2xl border-2 border-border bg-background p-5">
               <div className="grid gap-2 font-body text-sm text-muted-foreground">
                 <div>
-                  <span className="font-semibold text-foreground">Razão social:</span> Fluenteria
+                  <span className="font-semibold text-foreground">Razão social:</span> Blastidiomas
                 </div>
                 <div>
                   <span className="font-semibold text-foreground">CNPJ:</span> 39.433.448/0001-34
@@ -86,4 +86,3 @@ const SobreNosPage = () => (
 );
 
 export default SobreNosPage;
-

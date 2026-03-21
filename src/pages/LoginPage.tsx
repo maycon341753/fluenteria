@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { supabase } from "@/lib/supabaseClient";
 import { resolvePostLoginRedirect } from "@/lib/postLoginRedirect";
 import { Eye, EyeOff } from "lucide-react";
+import blastLogo from "@/assets/blast-logo.svg";
 
 const formatCpf = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -61,8 +62,8 @@ const LoginPage = () => {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <button onClick={() => navigate("/")} className="inline-flex items-center gap-2">
-            <span className="text-4xl">🗣️</span>
-            <span className="font-display text-3xl font-bold text-primary">Fluenteria</span>
+            <img src={blastLogo} alt="Blast Idiomas" className="h-10 w-10 select-none object-contain" />
+            <span className="font-display text-3xl font-bold text-primary">Blastidiomas</span>
           </button>
         </div>
         <div className="rounded-3xl border-2 border-border bg-card p-8 shadow-lg">

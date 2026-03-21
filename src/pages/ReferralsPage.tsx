@@ -18,7 +18,7 @@ const statusStyles: Record<string, string> = {
 
 const ReferralsPage = () => {
   const [copied, setCopied] = useState(false);
-  const referralLink = "https://fluenteria.com/ref/usuario123";
+  const referralLink = "https://blastidiomas.com/ref/usuario123";
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink);

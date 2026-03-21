@@ -1,5 +1,6 @@
 import siteSeguroBadge from "@/assets/site-100-seguro.svg";
 import sslSeguroBadge from "@/assets/ssl-certificado-seguro.svg";
+import blastLogo from "@/assets/blast-logo.svg";
 
 const Footer = () => (
   <footer className="border-t-2 border-border bg-card py-10">
@@ -7,8 +8,8 @@ const Footer = () => (
       <div className="flex flex-col items-center justify-between gap-8 text-center md:flex-row md:text-left">
         <div>
           <div className="mb-4 flex items-center justify-center gap-2 md:justify-start">
-            <span className="text-2xl">🗣️</span>
-            <span className="font-display text-xl font-bold text-primary">Fluenteria</span>
+            <img src={blastLogo} alt="Blast Idiomas" className="h-8 w-8 select-none object-contain" />
+            <span className="font-display text-xl font-bold text-primary">Blastidiomas</span>
           </div>
           <div className="mb-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 md:justify-start">
             <a href="/eca-lgpd" className="font-body text-sm font-semibold text-foreground hover:text-primary transition-colors">
@@ -25,7 +26,7 @@ const Footer = () => (
             </a>
           </div>
           <p className="font-body text-sm text-muted-foreground">
-            © 2026 Fluenteria. Todos os direitos reservados. Feito com 💙 para crianças.
+            © 2026 Blastidiomas. Todos os direitos reservados. Feito com 💙 para crianças.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">

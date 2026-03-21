@@ -91,11 +91,14 @@ const VideoAulasPage = () => {
     if (!userCreatedAt) return null;
     const created = new Date(userCreatedAt);
     if (Number.isNaN(created.getTime())) return null;
-    const days = Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24));
+    const createdStart = Date.UTC(created.getUTCFullYear(), created.getUTCMonth(), created.getUTCDate());
+    const now = new Date();
+    const nowStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const days = Math.max(0, Math.floor((nowStart - createdStart) / (1000 * 60 * 60 * 24)));
     return 10 - days;
   }, [isFreePlan, userCreatedAt]);
 
-  const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft < 0 : false), [freeDaysLeft]);
+  const freeExpired = useMemo(() => (freeDaysLeft !== null ? freeDaysLeft <= 0 : false), [freeDaysLeft]);
 
   const availableLevels = useMemo(() => {
     if (isPlanLoading) return [1];

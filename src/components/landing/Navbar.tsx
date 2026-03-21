@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import blastLogo from "@/assets/blast-logo.svg";
 
 type ModuleKey = "crianca" | "adolescente" | "adulto";
 
@@ -104,8 +105,8 @@ const Navbar = () => {
     <nav className="sticky top-0 z-50 border-b-2 border-border bg-card/95 backdrop-blur-md">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
         <button onClick={handleBrandClick} className="flex items-center gap-2">
-          <span className="text-2xl">🗣️</span>
-          <span className="font-display text-2xl font-bold text-primary">Fluenteria</span>
+          <img src={blastLogo} alt="Blast Idiomas" className="h-8 w-8 select-none object-contain" />
+          <span className="font-display text-2xl font-bold text-primary">Blastidiomas</span>
         </button>
 
         {/* Desktop links */}

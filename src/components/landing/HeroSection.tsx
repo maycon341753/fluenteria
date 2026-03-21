@@ -55,7 +55,7 @@ const HeroSection = () => {
           <div className="flex-1">
             <img
               src={heroImage}
-              alt="Crianças aprendendo inglês com Fluenteria"
+              alt="Crianças aprendendo inglês com Blastidiomas"
               className="w-full max-w-lg mx-auto rounded-3xl shadow-2xl animate-bounce-in"
             />
           </div>
