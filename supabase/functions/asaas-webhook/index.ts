@@ -52,11 +52,15 @@ serve(async (req) => {
 
     if (!asaasPaymentId) return json({ ok: true });
 
+    const normalizedStatus = String(status ?? "").toUpperCase();
     const paid =
       event === "PAYMENT_CONFIRMED" ||
       event === "PAYMENT_RECEIVED" ||
-      status === "CONFIRMED" ||
-      status === "RECEIVED";
+      event === "PAYMENT_RECEIVED_IN_CASH" ||
+      normalizedStatus === "CONFIRMED" ||
+      normalizedStatus === "RECEIVED" ||
+      normalizedStatus === "RECEIVED_IN_CASH" ||
+      normalizedStatus === "SETTLED";
 
     if (!paid) return json({ ok: true });
 
@@ -72,4 +76,3 @@ serve(async (req) => {
     return json({ error: message }, 500);
   }
 });
-

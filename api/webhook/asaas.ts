@@ -50,11 +50,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!paymentId) return ok(res);
 
+    const normalizedStatus = String(status ?? "").toUpperCase();
     const isPaid =
       event === "PAYMENT_CONFIRMED" ||
       event === "PAYMENT_RECEIVED" ||
-      status === "CONFIRMED" ||
-      status === "RECEIVED";
+      event === "PAYMENT_RECEIVED_IN_CASH" ||
+      normalizedStatus === "CONFIRMED" ||
+      normalizedStatus === "RECEIVED" ||
+      normalizedStatus === "RECEIVED_IN_CASH" ||
+      normalizedStatus === "SETTLED";
 
     if (!isPaid) return ok(res);
 

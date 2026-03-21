@@ -124,6 +124,11 @@ const getRemoteIp = (req: VercelRequest) => {
   return ip || null;
 };
 
+const isPaidAsaasStatus = (value: unknown) => {
+  const s = String(value ?? "").toUpperCase();
+  return s === "CONFIRMED" || s === "RECEIVED" || s === "RECEIVED_IN_CASH" || s === "SETTLED";
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   cors(res);
   try {
@@ -321,6 +326,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!invoiceId) return res.status(500).json({ error: "invoice not created" });
 
+    if (isPaidAsaasStatus(createdPayment.status)) {
+      const { error: confirmError } = await adminClient.rpc("confirm_asaas_payment", {
+        p_provider_payment_id: createdPayment.id,
+      });
+      if (confirmError) {
+        return res.status(400).json({
+          error: "platform_confirm_failed",
+          detail: confirmError.message,
+          invoice_id: invoiceId,
+          provider_payment_id: createdPayment.id,
+          status: createdPayment.status,
+        });
+      }
+    }
+
     return res.status(200).json({
       invoice_id: invoiceId,
       amount_cents: amountCents,
@@ -333,4 +353,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: message });
   }
 }
-
