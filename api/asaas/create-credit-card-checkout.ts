@@ -13,6 +13,7 @@ type CreateCardCheckoutBody = {
   holder_phone?: string;
   holder_postal_code?: string;
   holder_address_number?: string;
+  holder_email?: string;
 };
 
 type PlanRow = {
@@ -60,8 +61,11 @@ const asaasRequest = async <T>(baseUrl: string, apiKey: string, path: string, in
   const text = await res.text();
   if (!res.ok) {
     try {
-      const parsed = JSON.parse(text) as { errors?: Array<{ description?: string }> };
-      const msg = parsed?.errors?.map((e) => e.description).filter(Boolean).join(" | ");
+      const parsed = JSON.parse(text) as { errors?: Array<{ code?: string; description?: string }> };
+      const msg = parsed?.errors
+        ?.map((e) => (e.code ? `${e.code}: ${e.description ?? ""}`.trim() : e.description))
+        .filter(Boolean)
+        .join(" | ");
       throw new Error(msg || text || `Asaas error: ${res.status}`);
     } catch {
       throw new Error(text || `Asaas error: ${res.status}`);
@@ -205,6 +209,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const cpfCnpj = docFromBody ?? docFromMeta ?? docFromProfile;
     if (!cpfCnpj) return res.status(400).json({ error: "cpf_required" });
 
+    const holderName = String(body.holder_name ?? "").trim();
+    const phone = normalizePhone(body.holder_phone);
+    const postalCode = normalizePostalCode(body.holder_postal_code);
+    const addressNumber = String(body.holder_address_number ?? "").trim();
+    const holderEmail = String(body.holder_email ?? "").trim() || userEmail;
+
+    if (!holderName) return res.status(400).json({ error: "holder_name_required" });
+    if (!postalCode) return res.status(400).json({ error: "postal_code_required" });
+    if (!addressNumber) return res.status(400).json({ error: "address_number_required" });
+    if (!phone) return res.status(400).json({ error: "phone_required" });
+
     if (docFromBody && docFromBody !== docFromProfile) {
       const upd = await adminClient.from("profiles").update({ cpf_cnpj: docFromBody }).eq("user_id", userId);
       if (upd.error && !upd.error.message.toLowerCase().includes("cpf_cnpj")) {
@@ -214,9 +229,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!asaasCustomerId) {
       const customerPayload = {
-        name: (profileData as { full_name?: string | null } | null)?.full_name ?? fullName ?? userEmail ?? "Cliente",
-        email: (profileData as { email?: string | null } | null)?.email ?? userEmail ?? undefined,
+        name: (profileData as { full_name?: string | null } | null)?.full_name ?? fullName ?? holderName ?? userEmail ?? "Cliente",
+        email: (profileData as { email?: string | null } | null)?.email ?? holderEmail ?? undefined,
         cpfCnpj,
+        phone,
       };
 
       const createdCustomer = await asaasRequest<AsaasCustomerResponse>(asaasBaseUrl, asaasApiKey, "/customers", {
@@ -229,7 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       await asaasRequest<unknown>(asaasBaseUrl, asaasApiKey, `/customers/${asaasCustomerId}`, {
         method: "PUT",
-        body: JSON.stringify({ cpfCnpj }),
+        body: JSON.stringify({ cpfCnpj, phone, email: holderEmail ?? undefined }),
       });
     }
 
@@ -244,51 +260,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const cycleDays = billingCycle === "year" ? 365 : 30;
     const value = Number((amountCents / 100).toFixed(2));
 
-    const holderName = String(body.holder_name ?? "").trim();
     const cardNumber = normalizeCardNumber(body.card_number);
     const expMonth = normalizeExpMonth(body.card_exp_month);
     const expYear = normalizeExpYear(body.card_exp_year);
     const cvc = normalizeCvc(body.card_cvc);
-    const phone = normalizePhone(body.holder_phone);
-    const postalCode = normalizePostalCode(body.holder_postal_code);
-    const addressNumber = String(body.holder_address_number ?? "").trim();
-
-    if (!holderName) return res.status(400).json({ error: "holder_name_required" });
+    const remoteIp = getRemoteIp(req) ?? undefined;
     if (!cardNumber || cardNumber.length < 13) return res.status(400).json({ error: "card_number_required" });
     if (!expMonth) return res.status(400).json({ error: "card_exp_month_required" });
     if (!expYear) return res.status(400).json({ error: "card_exp_year_required" });
     if (!cvc || cvc.length < 3) return res.status(400).json({ error: "card_cvc_required" });
     if (!postalCode) return res.status(400).json({ error: "postal_code_required" });
-    if (!addressNumber) return res.status(400).json({ error: "address_number_required" });
-    if (!phone) return res.status(400).json({ error: "phone_required" });
 
-    const createdPayment = await asaasRequest<AsaasPaymentResponse>(asaasBaseUrl, asaasApiKey, "/payments", {
-      method: "POST",
-      body: JSON.stringify({
-        customer: asaasCustomerId,
-        billingType: "CREDIT_CARD",
-        value,
-        dueDate: formatDueDate(new Date()),
-        description: `Assinatura ${plan.name} (${billingCycle === "year" ? "Anual" : "Mensal"})`,
-        externalReference: `${userId}:${plan.id}:${billingCycle}:credit_card`,
-        creditCard: {
-          holderName,
-          number: cardNumber,
-          expiryMonth: expMonth,
-          expiryYear: expYear,
-          ccv: cvc,
-        },
-        creditCardHolderInfo: {
-          name: holderName,
-          email: userEmail ?? undefined,
-          cpfCnpj,
-          postalCode,
-          addressNumber,
-          phone,
-        },
-        remoteIp: getRemoteIp(req) ?? undefined,
-      }),
-    });
+    let createdPayment: AsaasPaymentResponse;
+    try {
+      createdPayment = await asaasRequest<AsaasPaymentResponse>(asaasBaseUrl, asaasApiKey, "/payments", {
+        method: "POST",
+        body: JSON.stringify({
+          customer: asaasCustomerId,
+          billingType: "CREDIT_CARD",
+          value,
+          dueDate: formatDueDate(new Date()),
+          description: `Assinatura ${plan.name} (${billingCycle === "year" ? "Anual" : "Mensal"})`,
+          externalReference: `${userId}:${plan.id}:${billingCycle}:credit_card`,
+          creditCard: {
+            holderName,
+            number: cardNumber,
+            expiryMonth: expMonth,
+            expiryYear: expYear,
+            ccv: cvc,
+          },
+          creditCardHolderInfo: {
+            name: holderName,
+            email: holderEmail ?? undefined,
+            cpfCnpj,
+            postalCode,
+            addressNumber,
+            addressComplement: null,
+            phone,
+            mobilePhone: phone,
+          },
+          remoteIp,
+        }),
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Transação não autorizada.";
+      if (message.toLowerCase().includes("invalid_creditcard")) {
+        return res.status(400).json({
+          error: "invalid_creditCard",
+          detail: "Transação não autorizada. Verifique os dados do cartão e do titular e tente novamente.",
+        });
+      }
+      return res.status(400).json({ error: message });
+    }
 
     const billingDueAt = new Date(Date.now() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
 
