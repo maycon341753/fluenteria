@@ -48,6 +48,14 @@ type CardCheckout = {
   status: string;
 };
 
+const computePlanAmountCents = (plan: Pick<PlanRow, "price_cents" | "interval" | "annual_discount_percent">, billingCycle: BillingCycle) => {
+  if (billingCycle === "month") return plan.price_cents;
+  if (plan.interval === "year") return plan.price_cents;
+  const percent = Math.max(0, Math.min(100, Number(plan.annual_discount_percent ?? 0)));
+  const base = plan.price_cents * 12;
+  return Math.round((base * (100 - percent)) / 100);
+};
+
 const formatCpfCnpj = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 14);
   if (digits.length <= 11) {

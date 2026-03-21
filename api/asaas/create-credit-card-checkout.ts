@@ -34,6 +34,14 @@ type AsaasPaymentResponse = {
   status: string;
 };
 
+export const computeAmountCentsForPlan = (plan: PlanRow, billingCycle: "month" | "year") => {
+  if (billingCycle === "month") return plan.price_cents;
+  if (plan.interval === "year") return plan.price_cents;
+  const percent = Math.max(0, Math.min(100, Number(plan.annual_discount_percent ?? 0)));
+  const base = plan.price_cents * 12;
+  return Math.round((base * (100 - percent)) / 100);
+};
+
 const cors = (res: VercelResponse) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -142,11 +150,6 @@ const getRemoteIp = (req: VercelRequest) => {
     (typeof req.socket?.remoteAddress === "string" ? req.socket.remoteAddress : "") ||
     "";
   return normalizeRemoteIp(ip);
-};
-
-const isPaidAsaasStatus = (value: unknown) => {
-  const s = String(value ?? "").toUpperCase();
-  return s === "CONFIRMED" || s === "RECEIVED" || s === "RECEIVED_IN_CASH" || s === "SETTLED";
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -265,13 +268,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const amountCents = (() => {
-      if (billingCycle === "month") return plan.price_cents;
-      if (plan.interval === "year") return plan.price_cents;
-      const percent = Math.max(0, Math.min(100, Number(plan.annual_discount_percent ?? 0)));
-      const base = plan.price_cents * 12;
-      return Math.round((base * (100 - percent)) / 100);
-    })();
+    const amountCents = computeAmountCentsForPlan(plan, billingCycle);
 
     const cycleDays = billingCycle === "year" ? 365 : 30;
     const value = Number((amountCents / 100).toFixed(2));
@@ -364,21 +361,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!invoiceId) return res.status(500).json({ error: "invoice not created" });
-
-    if (isPaidAsaasStatus(createdPayment.status)) {
-      const { error: confirmError } = await adminClient.rpc("confirm_asaas_payment", {
-        p_provider_payment_id: createdPayment.id,
-      });
-      if (confirmError) {
-        return res.status(400).json({
-          error: "platform_confirm_failed",
-          detail: confirmError.message,
-          invoice_id: invoiceId,
-          provider_payment_id: createdPayment.id,
-          status: createdPayment.status,
-        });
-      }
-    }
 
     return res.status(200).json({
       invoice_id: invoiceId,
