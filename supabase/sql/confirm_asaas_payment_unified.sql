@@ -12,6 +12,8 @@ declare
   v_billing_cycle text;
   v_payment_method text;
   v_cycle_days int;
+  v_base_end timestamptz;
+  v_new_end timestamptz;
 begin
   v_role := auth.role();
 
@@ -49,10 +51,18 @@ begin
     raise exception 'plan_id missing for invoice';
   end if;
 
+  select current_period_end
+    into v_base_end
+  from public.user_subscriptions
+  where user_id = v_user_id;
+
+  v_base_end := greatest(coalesce(v_base_end, now()), now());
+  v_new_end := v_base_end + make_interval(days => v_cycle_days);
+
   update public.invoices
   set status = 'paid',
       paid_at = now(),
-      due_date = now() + make_interval(days => v_cycle_days),
+      due_date = v_new_end,
       billing_cycle = v_billing_cycle,
       payment_method = v_payment_method,
       provider = 'asaas',
@@ -66,7 +76,7 @@ begin
   where provider_payment_id = p_provider_payment_id;
 
   insert into public.user_subscriptions (user_id, plan_id, status, current_period_end, billing_cycle, updated_at)
-  values (v_user_id, v_plan_id, 'active', now() + make_interval(days => v_cycle_days), v_billing_cycle, now())
+  values (v_user_id, v_plan_id, 'active', v_new_end, v_billing_cycle, now())
   on conflict (user_id) do update
   set plan_id = excluded.plan_id,
       status = excluded.status,
@@ -77,4 +87,3 @@ end;
 $$;
 
 grant execute on function public.confirm_asaas_payment(text) to authenticated;
-

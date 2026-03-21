@@ -22,17 +22,17 @@
     CERTIFICADO
   </text>
 
-  <g transform="translate(350,18)">
+  <g transform="translate(330,18)">
     <circle cx="26" cy="26" r="22" fill="#111827" stroke="#9CA3AF" stroke-width="4"/>
     <path d="M26 18c5.5 0 10 4.5 10 10v6h2c2 0 3.5 1.5 3.5 3.5V48c0 2-1.5 3.5-3.5 3.5H14c-2 0-3.5-1.5-3.5-3.5V37.5c0-2 1.5-3.5 3.5-3.5h2v-6c0-5.5 4.5-10 10-10Z" fill="#D1D5DB"/>
     <path d="M19 26c0-3.9 3.1-7 7-7s7 3.1 7 7v8H19v-8Z" fill="#111827" fill-opacity=".25"/>
     <path d="M45 22l6 6-12 12-6-6 3-3 3 3 9-9Z" fill="#22C55E"/>
   </g>
 
-  <text x="392" y="42" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="18" font-weight="900" fill="#E5E7EB" letter-spacing=".6">
+  <text x="372" y="42" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="18" font-weight="900" fill="#E5E7EB" letter-spacing=".6">
     COMPRA 100%
   </text>
-  <text x="392" y="78" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="34" font-weight="900" fill="#22C55E" letter-spacing="1">
+  <text x="372" y="78" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="34" font-weight="900" fill="#22C55E" letter-spacing="1">
     SEGURA
   </text>
 
@@ -47,4 +47,3 @@
     </linearGradient>
   </defs>
 </svg>
-

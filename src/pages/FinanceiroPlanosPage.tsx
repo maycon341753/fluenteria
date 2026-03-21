@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "@/hooks/use-toast";
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type PlanRow = {
   id: string;
@@ -152,6 +152,8 @@ const getPlanMarketing = (name: string) => {
 
 const FinanceiroPlanosPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const handledCheckoutFromUrl = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanRow[]>([]);
@@ -252,6 +254,24 @@ const FinanceiroPlanosPage = () => {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (handledCheckoutFromUrl.current) return;
+    if (isLoading) return;
+    const params = new URLSearchParams(location.search);
+    const planId = params.get("checkout_plan_id");
+    if (!planId) return;
+    const cycle = params.get("checkout_cycle") === "year" ? "year" : "month";
+    const plan = plans.find((p) => p.id === planId) ?? null;
+    if (!plan) return;
+
+    handledCheckoutFromUrl.current = true;
+    void openCheckout(plan).then(() => setCheckoutCycle(cycle));
+    params.delete("checkout_plan_id");
+    params.delete("checkout_cycle");
+    params.delete("checkout_source");
+    navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ""}`, { replace: true });
+  }, [isLoading, location.pathname, location.search, navigate, plans]);
 
   const currentPlanId = subscription?.plan_id ?? null;
 

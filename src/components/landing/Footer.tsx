@@ -26,8 +26,8 @@ const Footer = () => (
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
-          <img src={siteSeguroBadge} alt="Site 100% seguro" className="h-12 w-auto select-none" />
-          <img src={sslSeguroBadge} alt="Compra 100% segura e SSL certificado" className="h-12 w-auto select-none" />
+          <img src={siteSeguroBadge} alt="Site 100% seguro" className="max-h-12 w-auto max-w-full select-none object-contain" />
+          <img src={sslSeguroBadge} alt="Compra 100% segura e SSL certificado" className="max-h-12 w-auto max-w-full select-none object-contain" />
         </div>
       </div>
     </div>
