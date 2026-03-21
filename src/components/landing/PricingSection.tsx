@@ -39,7 +39,7 @@ const marketingPlans = [
       "Painel dos pais completo",
       "Notificações WhatsApp",
       "Até 6 usuários (Família)",
-      "7 dias grátis",
+      "Suporte",
     ],
     variant: "hero" as const,
     popular: true,
@@ -53,7 +53,7 @@ const marketingPlans = [
       "Suporte prioritário",
       "Correção por IA avançada",
       "Conteúdo exclusivo",
-      "7 dias grátis",
+      "Suporte",
     ],
     variant: "referral" as const,
     popular: false,
@@ -158,7 +158,7 @@ const PricingSection = () => {
                 ))}
               </ul>
               <Button variant={plan.variant} className="w-full" size="lg" onClick={() => navigate("/login?mode=signup")}>
-                {priceCents === 0 ? "Começar Grátis" : "Teste 7 Dias Grátis"}
+                {priceCents === 0 ? "Começar Grátis" : "Assine Já"}
               </Button>
             </div>
             );
