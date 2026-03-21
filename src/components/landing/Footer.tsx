@@ -20,6 +20,9 @@ const Footer = () => (
             <a href="/sobre-nos" className="font-body text-sm font-semibold text-foreground hover:text-primary transition-colors">
               Sobre nós
             </a>
+            <a href="/privacidade-seguranca" className="font-body text-sm font-semibold text-foreground hover:text-primary transition-colors">
+              Privacidade e segurança
+            </a>
           </div>
           <p className="font-body text-sm text-muted-foreground">
             © 2026 Fluenteria. Todos os direitos reservados. Feito com 💙 para crianças.

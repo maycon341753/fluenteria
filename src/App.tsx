@@ -9,6 +9,7 @@ import LessonPage from "./pages/LessonPage";
 import ParentDashboard from "./pages/ParentDashboard";
 import ReferralsPage from "./pages/ReferralsPage";
 import SobreNosPage from "./pages/SobreNosPage";
+import PrivacidadeSegurancaPage from "./pages/PrivacidadeSegurancaPage";
 import LoginPage from "./pages/LoginPage";
 import PricingPage from "./pages/PricingPage";
 import EcaLgpdPage from "./pages/EcaLgpdPage";
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/video-aulas" element={<VideoAulasPage />} />
           <Route path="/referrals" element={<ReferralsPage />} />
           <Route path="/sobre-nos" element={<SobreNosPage />} />
+          <Route path="/privacidade-seguranca" element={<PrivacidadeSegurancaPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/financeiro" element={<FinanceiroPage />} />
