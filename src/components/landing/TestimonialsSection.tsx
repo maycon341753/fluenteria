@@ -20,7 +20,7 @@ const testimonials: Testimonial[] = [
   {
     name: "Aline P.",
     rating: 5,
-    comment: "A plataforma é muito bem feita. As atividades prendem a atenção e o acompanhamento dá segurança para manter a consistência.",
+    comment: "Os vídeos e as músicas fazem toda a diferença. Aqui em casa a criança aprende brincando, canta junto e volta por vontade própria.",
   },
   {
     name: "João M.",
@@ -82,4 +82,3 @@ const TestimonialsSection = () => {
 };
 
 export default TestimonialsSection;
-

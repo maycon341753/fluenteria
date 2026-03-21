@@ -20,6 +20,9 @@ const ChildDashboard = () => {
               <Button variant="outline" onClick={() => navigate("/modulos")}>
                 Trocar módulo
               </Button>
+              <Button variant="outline" onClick={() => navigate("/financeiro/planos")}>
+                Assine já
+              </Button>
             </div>
           </div>
 

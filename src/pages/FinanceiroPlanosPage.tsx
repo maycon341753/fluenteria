@@ -123,7 +123,7 @@ const getPlanMarketing = (name: string) => {
       emoji: "🔵",
       subtitle: "Para avançar com velocidade",
       highlights: ["Todos os níveis", "Lições ilimitadas"],
-      benefits: ["Assinatura de 30 dias", "Painel dos pais completo", "Notificações WhatsApp", "Até 6 usuários (Família)"],
+      benefits: ["Assinatura de 30 dias", "Painel completo", "Notificações WhatsApp", "Até 2 usuários (Família)"],
       variant: "hero" as const,
       popular: true,
     };
