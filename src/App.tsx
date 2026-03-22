@@ -27,6 +27,7 @@ import AdminChamadosPage from "./pages/admin/AdminChamadosPage";
 import AdminConteudosPage from "./pages/admin/AdminConteudosPage";
 import AdminProgressoPage from "./pages/admin/AdminProgressoPage";
 import AdminVideoAulasPage from "./pages/admin/AdminVideoAulasPage";
+import AdminIndicacoesPage from "./pages/admin/AdminIndicacoesPage";
 import SupportPage from "./pages/SupportPage";
 import VideoAulasPage from "./pages/VideoAulasPage";
 
@@ -59,6 +60,7 @@ const App = () => (
           <Route path="/admin/financeiro" element={<AdminFinanceiroPage />} />
           <Route path="/admin/clientes" element={<AdminClientesPage />} />
           <Route path="/admin/planos" element={<AdminPlanosPage />} />
+          <Route path="/admin/indicacoes" element={<AdminIndicacoesPage />} />
           <Route path="/admin/chamados" element={<AdminChamadosPage />} />
           <Route path="/admin/conteudos" element={<AdminConteudosPage />} />
           <Route path="/admin/progresso" element={<AdminProgressoPage />} />

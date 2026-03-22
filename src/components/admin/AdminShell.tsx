@@ -59,6 +59,14 @@ const AdminShell = ({ title, children }: Props) => {
                     variant="ghost"
                     size="sm"
                     className="shrink-0 justify-start md:whitespace-nowrap"
+                    onClick={() => navigate("/admin/indicacoes")}
+                  >
+                    Indicações
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 justify-start md:whitespace-nowrap"
                     onClick={() => navigate("/admin/chamados")}
                   >
                     Chamados

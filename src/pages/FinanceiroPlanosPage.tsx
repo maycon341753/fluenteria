@@ -48,6 +48,24 @@ type CardCheckout = {
   status: string;
 };
 
+const resolveApiBase = () => {
+  const raw = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "").trim();
+  if (!raw) {
+    if (typeof window === "undefined") return "";
+    const host = window.location.hostname;
+    const isLocal =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
+    return isLocal ? "https://blastidiomas.vercel.app" : "";
+  }
+  const base = raw.replace(/\/+$/, "");
+  if (base.includes("fluenteria.vercel.app")) return base.replace("fluenteria.vercel.app", "blastidiomas.vercel.app");
+  return base;
+};
+
 const computePlanAmountCents = (plan: Pick<PlanRow, "price_cents" | "interval" | "annual_discount_percent">, billingCycle: BillingCycle) => {
   if (billingCycle === "month") return plan.price_cents;
   if (plan.interval === "year") return plan.price_cents;
@@ -89,6 +107,14 @@ const formatMoney = (amountCents: number, currency: string) => {
   } catch {
     return `${currency} ${amount.toFixed(2)}`;
   }
+};
+
+const shouldRetryAuth = (json: { error?: string; detail?: string } | null) => {
+  const err = String(json?.error ?? "").toLowerCase();
+  const detail = String(json?.detail ?? "").toLowerCase();
+  if (err === "unauthorized" || err === "invalid_authorization") return true;
+  if (detail.includes("auth session missing")) return true;
+  return false;
 };
 
 const formatCardNumber = (value: string) => {
@@ -311,18 +337,24 @@ const FinanceiroPlanosPage = () => {
 
   const visiblePlans = useMemo(() => sortedPlans.filter((p) => p.is_active || p.id === currentPlanId), [currentPlanId, sortedPlans]);
 
-  const createPixCheckout = async (plan: PlanRow, cpfDigits: string | null, billingCycle: BillingCycle) => {
+  const createPixCheckout = async (plan: PlanRow, cpfDigits: string | null, billingCycle: BillingCycle, didRetryAuth = false) => {
     if (!supabase) return;
     setIsCheckingOut(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
+      const session = sessionData.session;
+      let accessToken = session?.access_token;
+      const expiresAtMs = session?.expires_at ? session.expires_at * 1000 : null;
+      if (expiresAtMs && expiresAtMs - Date.now() < 60_000) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        accessToken = refreshed.session?.access_token ?? accessToken;
+      }
       if (!accessToken) {
         setCheckoutError("Sessão expirada. Faça login novamente.");
         return;
       }
 
-      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+      const apiBase = resolveApiBase();
       const res = await fetch(`${apiBase}/api/asaas/create-pix-checkout`, {
         method: "POST",
         headers: {
@@ -334,6 +366,14 @@ const FinanceiroPlanosPage = () => {
 
       const json = (await res.json().catch(() => null)) as (PixCheckout & { error?: string; detail?: string }) | null;
       if (!res.ok) {
+        if (!didRetryAuth && shouldRetryAuth(json)) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          const nextToken = refreshed.session?.access_token ?? null;
+          if (nextToken) {
+            void createPixCheckout(plan, cpfDigits, billingCycle, true);
+            return;
+          }
+        }
         const base = json?.error ?? "Falha ao gerar PIX.";
         const detail = json?.detail ? ` (${json.detail})` : "";
         const msg = `${base}${detail}`;
@@ -363,21 +403,27 @@ const FinanceiroPlanosPage = () => {
     }
   };
 
-  const createCreditCardCheckout = async (plan: PlanRow, billingCycle: BillingCycle) => {
+  const createCreditCardCheckout = async (plan: PlanRow, billingCycle: BillingCycle, didRetryAuth = false) => {
     if (!supabase) return;
     setIsCheckingOut(true);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      const email = sessionData.session?.user.email ?? null;
-      const metaFullName = (sessionData.session?.user.user_metadata?.full_name as string | undefined) ?? "";
+      const session = sessionData.session;
+      let accessToken = session?.access_token;
+      const expiresAtMs = session?.expires_at ? session.expires_at * 1000 : null;
+      if (expiresAtMs && expiresAtMs - Date.now() < 60_000) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        accessToken = refreshed.session?.access_token ?? accessToken;
+      }
+      const email = session?.user.email ?? null;
+      const metaFullName = (session?.user.user_metadata?.full_name as string | undefined) ?? "";
 
       if (!accessToken) {
         setCheckoutError("Sessão expirada. Faça login novamente.");
         return;
       }
 
-      const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+      const apiBase = resolveApiBase();
       const digits = cpfCnpj.replace(/\D/g, "");
       const cpfDigits = digits.length === 11 || digits.length === 14 ? digits : null;
       if (!cpfDigits) {
@@ -408,9 +454,17 @@ const FinanceiroPlanosPage = () => {
         }),
       });
 
-      const json = (await res.json()) as { error?: string } & Partial<CardCheckout>;
+      const json = (await res.json()) as { error?: string; detail?: string } & Partial<CardCheckout>;
 
       if (!res.ok) {
+        if (!didRetryAuth && shouldRetryAuth(json)) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          const nextToken = refreshed.session?.access_token ?? null;
+          if (nextToken) {
+            void createCreditCardCheckout(plan, billingCycle, true);
+            return;
+          }
+        }
         if (json.error === "cpf_required") {
           setCpfCnpjRequired(true);
           setCheckoutError("Informe CPF ou CNPJ para continuar.");

@@ -26,6 +26,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isSignup, setIsSignup] = useState(() => searchParams.get("mode") === "signup");
+  const referralCode = (searchParams.get("ref") ?? "").trim();
   const [fullName, setFullName] = useState("");
   const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
@@ -131,6 +132,7 @@ const LoginPage = () => {
                       data: {
                         full_name: fullName,
                         cpf: cpfDigits,
+                        ...(referralCode ? { ref: referralCode } : {}),
                       },
                     },
                   });
